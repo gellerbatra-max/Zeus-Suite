@@ -1,0 +1,49 @@
+name: data-platform-api CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: zeus
+          POSTGRES_PASSWORD: zeus
+          POSTGRES_DB: zeus_suite
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U zeus -d zeus_suite"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    defaults:
+      run:
+        working-directory: apps/data-platform-api
+
+    env:
+      DATABASE_URL: postgresql+psycopg://zeus:zeus@localhost:5432/zeus_suite
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: pip install -e ".[dev]"
+
+      - name: Apply migrations (schema + seed data)
+        run: alembic upgrade head
+
+      - name: Run tests
+        run: pytest
