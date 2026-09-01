@@ -23,7 +23,18 @@
 4. **`04_format_interchange/format_interchange_plan.md`** — build once Pattern Design's piece
    format and Marker Making's marker format are stable.
 
-5. **`05_reference_function_catalogues/`** — the raw source material every per-app plan was built
+5. **`05_3d_digital_twin/digital_twin_3d_plan.md`** — the 5th application, 3D Virtual Sampling /
+   Digital Twin. Build alongside Production Output in Phase 3, once Pattern Design's piece format
+   is stable. Grounded in current CLO3D/Browzwear/Optitex/Lectra Modaris documentation (Gerber and
+   Richpeace don't cover 3D in comparable depth); reuses the platform's async-job pattern with a
+   GPU-backed worker tier, and documents a justified C++ exception to the suite's
+   Python-everywhere rule for the physics core.
+
+6. **`06_ui_mockups/`** — high-fidelity visual reference for the Marker Making workspace screen.
+   See that folder's own README for status (a live Figma design file exists but is currently
+   blocked by a Starter-plan rate limit; this screen was rendered statically as a substitute).
+
+7. **`05_reference_function_catalogues/`** — the raw source material every per-app plan was built
    from: the full Gerber AccuMark function definitions (Pattern Design, Marker Making, Order
    Entry, IGES, Style Converter) and the full Richpeace DGS/GMS function definitions, plus the
    Richpeace-vs-Gerber comparison findings that justified several design decisions (e.g. the
@@ -53,4 +64,6 @@
 | `02_pattern_design/` | Plan, 4 workflow flowcharts |
 | `03_marker_making_production/` | Plan, 4 workflow flowcharts |
 | `04_format_interchange/` | Plan, 3 workflow flowcharts |
+| `05_3d_digital_twin/` | Plan, 3 workflow flowcharts (mesh construction/drape, fit review, material/export) |
+| `06_ui_mockups/` | High-fidelity Marker Making workspace mockup (static render; live Figma file in progress) |
 | `05_reference_function_catalogues/` | Full Gerber + Richpeace function catalogues, comparison report |

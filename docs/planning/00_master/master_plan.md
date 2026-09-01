@@ -1,7 +1,7 @@
 # Master Plan — Apparel CAD/CAM/MES Product Suite
 *The single interconnected reference for the whole suite: what each application is, how they
 connect to each other and to the shared data platform, and the phase-by-phase order to build them
-in. Read this document first; the four per-application unified plans (each with its own detailed
+in. Read this document first; the per-application unified plans (each with its own detailed
 flowcharts and full function catalogue) are the implementation-level detail underneath it.*
 
 ## Master interconnection diagram
@@ -39,6 +39,15 @@ flowchart TB
         MIGRATE["Bulk legacy migration utility<br/>with error/warning triage"]:::app
     end
 
+    
+    subgraph D3["3D VIRTUAL SAMPLING / DIGITAL TWIN"]
+        MESH["Garment-to-mesh construction<br/>+ physics-based drape simulation<br/>(async job, GPU worker)"]:::app
+        FIT["Avatar/fit review,<br/>material & texture visualization"]:::app
+        MESH --> FIT
+    end
+
+    AVATARLIB["Avatar / body model library"]:::external
+
     CUTTER["Cutting room hardware<br/>(cutter, label/tag printer)"]:::external
     MES["Existing MES / WIP tracking system"]:::external
     OTHERCAD["Other CAD systems<br/>(customers, suppliers)"]:::external
@@ -57,15 +66,20 @@ flowchart TB
 
     class PLATFORM platform
 
+    PDCORE -->|"finished piece +\nseam/fabric data"| MESH
+    FIT -->|"avatar/measurement\nprofiles"| AVATARLIB
+    APIAPP -->|"save/fetch\ngarment mesh"| MESH
+
 ```
 
 This is the one diagram showing every application in the suite and how data actually flows between
 them at runtime (not build order -- see the roadmap section below for that): the Data Management
 Platform sits at the center as the only thing every application talks to; Pattern Design produces
 pieces; Marker Making & Production Output consumes pieces, nests them, and produces cut data,
-plots, and bundle/RFID tags for the cutting room and an existing MES; Format Interchange & Legacy
-Migration is the two-way bridge to the outside world (other CAD systems via IGES, and a customer's
-legacy pattern library via bulk migration).
+plots, and bundle/RFID tags for the cutting room and an existing MES; the 3D Virtual Sampling /
+Digital Twin app also consumes finished pieces to build a simulatable garment mesh for drape and
+fit review; Format Interchange & Legacy Migration is the two-way bridge to the outside world
+(other CAD systems via IGES, and a customer's legacy pattern library via bulk migration).
 
 ---
 
@@ -124,11 +138,27 @@ client, centralized server" pattern already established. None of them talk to ea
 directly; a piece created in Pattern Design becomes visible to Marker Making only via the shared
 platform, mirroring how Storage Areas made Gerber's separate applications interoperate.
 
+### 5. 3D Virtual Sampling / Digital Twin
+**Added after re-examining scope against the broader market, not just Gerber/Richpeace.** The
+earlier market-research pass classified 3D virtual sampling (physics-based garment draping,
+avatar/fit visualization) as **CORE/table-stakes** — standard across Browzwear, CLO3D, Optitex,
+Assyst/Style3D, Tukatech, and Lectra Modaris — not a differentiator. Gerber's own AccuMark 3D
+module exists but is thin/adjacent rather than 3D-native (per the same research, AccuMark itself
+"remains fundamentally a 2D pattern/grading/marker engine," with Lectra's real 3D strength living
+in the separate Modaris product). Since matching Gerber/Richpeace feature-for-feature is not the
+same bar as staying competitive with the broader market, this suite includes a real 3D
+application rather than treating it as an out-of-scope R&D bet.
+
+This app takes finished pattern pieces from Pattern Design & Grading (piece outlines, seam/sew-line
+data, fabric properties) and constructs a simulatable 3D garment mesh, drapes it on an avatar/body
+model, and supports fit review and material/texture visualization — closing the CORE-tier gap the
+market research itself flagged. Full spec: `digital_twin_3d_plan.md`.
+
 ## Explicitly out of scope for this document set
-The differentiator modules from the earlier "advanced product range" research pass (AI-native
-pattern generation, a unified 3D digital twin, predictive sustainability analytics) are not
-included in this build plan — they were flagged as R&D-track bets in that outline, not near-term
-shipping commitments, and are not needed to reach feature-parity with Gerber/Richpeace.
+Two items from the earlier "advanced product range" research pass remain excluded — AI-native
+pattern generation and predictive sustainability analytics — both flagged in that outline as
+research-stage bets across the whole industry (not just this suite), not near-term shipping
+commitments.
 
 ---
 
@@ -138,7 +168,7 @@ shipping commitments, and are not needed to reach feature-parity with Gerber/Ric
 the build-order flowchart below — this document explains the reasoning; the flowchart is the
 reference diagram to keep visible while planning sprints.*
 
-![Application build order]({{artifact:e58fc4f9-c1b1-4a99-8f71-74a1ebb9801d}})
+![Application build order]({{artifact:65d8bc1e-094e-46a8-a071-d404aadd29d5}})
 
 ## Phase 1 — Foundation (sequential; nothing else can start in earnest without it)
 **Build:** object storage, relational metadata database, identity/RBAC layer, and the Data
@@ -170,20 +200,25 @@ need the Phase 1 API contract, not each other's internals.
 platform; Marker Making can retrieve pieces from the platform, nest them (both automation modes),
 and save a marker back through the platform.
 
-## Phase 3 — Production output & utilities (parallel, depends on Phase 2's data model being real)
+## Phase 3 — Production output, 3D & utilities (parallel, depends on Phase 2's data model being real)
 **Build in parallel:** the Production Output module (cut-data generation, plot/export, order/piece
-metadata, bundle/RFID tracking hooks) and the Format Interchange & Legacy Migration Utility.
+metadata, bundle/RFID tracking hooks), the Format Interchange & Legacy Migration Utility, and the
+3D Virtual Sampling / Digital Twin application.
 
 **Why these wait for Phase 2 but can run parallel to each other:** Production Output needs a real
 marker data model to generate cut data from — it's the direct downstream consumer of Marker
 Making's output, so it can't meaningfully start until Marker Making's marker schema is real (not
 just planned). The Format Interchange utility needs Pattern Design's piece format to convert into,
-for the same reason. But Production Output and Format Interchange have no dependency on each
-other, so once each of their respective upstream data models is real, they proceed in parallel.
+for the same reason. The 3D application needs Pattern Design's finished piece data (outlines,
+seam/sew-line data, fabric properties) to construct a simulatable garment mesh, so it likewise
+can't meaningfully start until Pattern Design's piece schema is real. All three have no dependency
+on each other, so once each one's respective upstream data model is real, they proceed in
+parallel.
 
 **Exit criteria:** a marker can be turned into cut data, plotted, and exported; a bundle/RFID tag
 can be generated from a marker's piece data at the moment of cutting; an external pattern file can
-be converted into the suite's native piece format with an error/warning triage report.
+be converted into the suite's native piece format with an error/warning triage report; a finished
+pattern piece can be constructed into a 3D garment mesh, draped on an avatar, and reviewed for fit.
 
 ## Phase 4 — Integration & hardening (sequential; needs every application present)
 **Build:** end-to-end workflow testing (design → nest → cut → track), scale/performance testing
@@ -201,22 +236,8 @@ volumes that broke Gerber's original flat-storage design, rather than assumed.
 |---|---|---|---|
 | 1 | Data Management Platform | — (single track) | nothing |
 | 2 | Pattern Design & Grading; Marker Making (core) | Parallel with each other | Phase 1 API |
-| 3 | Production Output; Format Interchange & Migration | Parallel with each other | Phase 2 data models |
+| 3 | Production Output; Format Interchange & Migration; 3D Virtual Sampling / Digital Twin | Parallel with each other | Phase 2 data models |
 | 4 | Integration & hardening | Sequential (cross-cutting) | All applications present |
-
----
-
-## Where to go next
-This document is the map. For the actual buildable detail on each application -- the full merged
-function catalogue, per-workflow flowcharts, data model, and phased build steps specific to that
-app -- see:
-- `data_management_platform_plan.md`
-- `pattern_design_plan.md`
-- `marker_making_production_plan.md`
-- `format_interchange_plan.md`
-
-All four are included in the delivered zip alongside this master plan.
-
 
 ---
 
@@ -284,3 +305,20 @@ Every per-application plan in this delivery states which rows of this table appl
 own modules — the same choices are used suite-wide so there is one backend language, one frontend
 language, and one database technology across all four applications, with the async-job pattern
 (queue + worker) shared identically wherever a long-running computation exists.
+
+
+## Where to go next
+This document is the map. For the actual buildable detail on each application -- the full merged
+function catalogue, per-workflow flowcharts, data model, and phased build steps specific to that
+app -- see:
+- `data_management_platform_plan.md`
+- `pattern_design_plan.md`
+- `marker_making_production_plan.md`
+- `format_interchange_plan.md`
+- `digital_twin_3d_plan.md` -- the 3D Virtual Sampling / Digital Twin application, grounded in
+  current CLO3D/Browzwear/Optitex/Lectra Modaris documentation rather than the Gerber/Richpeace
+  manual set (neither covers 3D in comparable depth); reuses the platform's async-job pattern
+  with a GPU-backed worker tier for drape simulation, and documents an explicit, justified C++
+  exception to the suite's Python-everywhere backend rule for the physics core.
+
+All five are included in the delivered package alongside this master plan.
