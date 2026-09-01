@@ -16,6 +16,7 @@ from app.api import (
     folders,
     jobs,
     markers,
+    matching,
     meta,
     orders,
     pieces,
@@ -72,6 +73,7 @@ app.include_router(folders.router)
 app.include_router(pieces.router)
 app.include_router(styles.router)
 app.include_router(markers.router)
+app.include_router(matching.router)
 app.include_router(orders.router)
 app.include_router(workflow.router)
 app.include_router(audit_log.router)

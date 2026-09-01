@@ -60,3 +60,11 @@ class PlatformClient:
     def put(self, path: str, json: object = None, **kwargs):
         response = self._request("PUT", path, json=json, **kwargs)
         return response.json() if response.content else None
+
+    def patch(self, path: str, json: object = None, **kwargs):
+        response = self._request("PATCH", path, json=json, **kwargs)
+        return response.json() if response.content else None
+
+    def delete(self, path: str, **kwargs):
+        response = self._request("DELETE", path, **kwargs)
+        return response.json() if response.content else None

@@ -29,6 +29,7 @@ class Marker(Base):
     ply_count = Column(Integer)
     utilization_pct = Column(Numeric(5, 2))
     matching_method = Column(Text)
+    matching_rule_table_id = Column(UUID(as_uuid=True), ForeignKey("dmp.matching_rule_tables.id"), nullable=True)
     current_version_id = Column(UUID(as_uuid=True), ForeignKey("dmp.marker_versions.id"), nullable=True)
     workflow_status_id = Column(SmallInteger, ForeignKey("dmp.workflow_statuses.id"), nullable=False)
     search_vector = Column(TSVECTOR)

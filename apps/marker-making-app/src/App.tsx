@@ -1,11 +1,12 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { IdentityBar } from './components/IdentityBar'
 import { PieceTray } from './components/PieceTray'
 import { MarkerCanvas } from './components/MarkerCanvas'
 import type { CanvasPlacement } from './components/MarkerCanvas'
 import { NestingJobPanel } from './components/NestingJobPanel'
+import { MatchingPanel } from './components/MatchingPanel'
 import { api, ApiError } from './api/client'
-import type { WorkspaceOut } from './api/types'
+import type { MatchGuidanceOut, WorkspaceOut } from './api/types'
 
 // The platform's marker.fabric_width isn't wired into the workspace payload for this slice --
 // the boundary here is a fixed visual reference, not tied to a real fabric width yet.
@@ -29,8 +30,11 @@ function toCanvasPlacement(workspace: WorkspaceOut, pieceId: string): CanvasPlac
     height: data.height ?? piece.height,
     sizeCode: placement?.size_code ?? 'M',
     quantity: placement?.quantity ?? 1,
+    stripeMarkId: data.stripe_mark_id ?? null,
   }
 }
+
+const GUIDANCE_THROTTLE_MS = 150
 
 export default function App() {
   const [markerIdInput, setMarkerIdInput] = useState('')
@@ -39,6 +43,10 @@ export default function App() {
   const [selectedPieceId, setSelectedPieceId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
+  const [matchingMethod, setMatchingMethod] = useState<string | null>(null)
+  const [matchingRuleTableId, setMatchingRuleTableId] = useState<string | null>(null)
+  const [guidance, setGuidance] = useState<{ pieceId: string; result: MatchGuidanceOut } | null>(null)
+  const lastGuidanceAt = useRef(0)
 
   const openMarker = async () => {
     const markerId = markerIdInput.trim()
@@ -51,6 +59,9 @@ export default function App() {
         ws.placements.map((p) => toCanvasPlacement(ws, p.piece_id)).filter((p): p is CanvasPlacement => p !== null),
       )
       setSelectedPieceId(null)
+      setMatchingMethod(ws.matching_method)
+      setMatchingRuleTableId(ws.matching_rule_table_id)
+      setGuidance(null)
     } catch (err) {
       setWorkspace(null)
       setError(err instanceof ApiError ? err.message : String(err))
@@ -69,7 +80,7 @@ export default function App() {
       ...prev,
       {
         pieceId, pieceCode: piece.piece_code, x, y, rotationDeg: 0, flipX: false, flipY: false,
-        width: piece.width, height: piece.height, sizeCode: 'M', quantity: 1,
+        width: piece.width, height: piece.height, sizeCode: 'M', quantity: 1, stripeMarkId: null,
       },
     ])
     setSelectedPieceId(pieceId)
@@ -77,6 +88,25 @@ export default function App() {
 
   const handleMove = (pieceId: string, x: number, y: number) => {
     setPlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, x, y } : p)))
+    setGuidance(null)
+  }
+
+  const handleAssignMark = (pieceId: string, markId: string | null) => {
+    setPlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, stripeMarkId: markId } : p)))
+  }
+
+  const handleDragMove = (pieceId: string, x: number, y: number) => {
+    const piece = placements.find((p) => p.pieceId === pieceId)
+    if (!piece?.stripeMarkId || !workspace) return
+    const now = Date.now()
+    if (now - lastGuidanceAt.current < GUIDANCE_THROTTLE_MS) return
+    lastGuidanceAt.current = now
+    api
+      .post<MatchGuidanceOut>(`/markers/${workspace.marker_id}/matching/guidance`, {
+        piece_id: pieceId, stripe_mark_id: piece.stripeMarkId, x, y,
+      })
+      .then((result) => setGuidance({ pieceId, result }))
+      .catch(() => setGuidance(null))
   }
 
   const updateSelected = (fn: (p: CanvasPlacement) => CanvasPlacement) => {
@@ -102,11 +132,13 @@ export default function App() {
           quantity: p.quantity,
           placement_data: {
             x: p.x, y: p.y, rotation_deg: p.rotationDeg, flip_x: p.flipX, flip_y: p.flipY,
-            width: p.width, height: p.height,
+            width: p.width, height: p.height, stripe_mark_id: p.stripeMarkId,
           },
         })),
       })
       setWorkspace(updated)
+      setMatchingMethod(updated.matching_method)
+      setMatchingRuleTableId(updated.matching_rule_table_id)
     } catch (err) {
       setError(err instanceof ApiError ? err.message : String(err))
     } finally {
@@ -153,9 +185,12 @@ export default function App() {
               placements={placements}
               onPlace={handlePlace}
               onMove={handleMove}
+              onDragMove={handleDragMove}
               onSelect={setSelectedPieceId}
               selectedPieceId={selectedPieceId}
+              guidance={guidance}
             />
+            {guidance?.result.message && <p className="matching-warning">{guidance.result.message}</p>}
             <div className="piece-toolbar">
               <button disabled={!selectedPieceId} onClick={() => updateSelected((p) => ({ ...p, rotationDeg: (p.rotationDeg + 90) % 360 }))}>
                 Rotate 90°
@@ -171,6 +206,19 @@ export default function App() {
               </button>
             </div>
           </div>
+
+          <MatchingPanel
+            markerId={workspace.marker_id}
+            matchingMethod={matchingMethod}
+            matchingRuleTableId={matchingRuleTableId}
+            selectedPieceId={selectedPieceId}
+            selectedPieceStripeMarkId={placements.find((p) => p.pieceId === selectedPieceId)?.stripeMarkId ?? null}
+            onMatchingApplied={(method, ruleTableId) => {
+              setMatchingMethod(method)
+              setMatchingRuleTableId(ruleTableId)
+            }}
+            onAssignMark={handleAssignMark}
+          />
 
           <NestingJobPanel markerId={workspace.marker_id} orderId={workspace.order_id} />
         </div>

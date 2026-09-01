@@ -22,6 +22,7 @@ from app.models.identity import (
 )
 from app.models.jobs import Job, JobEvent, JobType
 from app.models.markers import Marker, MarkerPiece, MarkerVersion
+from app.models.matching import MatchingRuleTable
 from app.models.orders import Order, OrderLine
 from app.models.pieces import Piece, PieceVersion
 from app.models.reports import ReportDefinition, ReportRun
@@ -38,6 +39,7 @@ __all__ = [
     "Marker",
     "MarkerPiece",
     "MarkerVersion",
+    "MatchingRuleTable",
     "Order",
     "OrderLine",
     "Organization",

@@ -122,6 +122,17 @@ own) — fixed in the same pass across every entity router, not scoped to search
   geometry this platform stores as an opaque blob (Pattern Design's/Marker Making's domain, not
   this platform's). `tests/test_reports.py` covers both paths plus permission enforcement.
 
+- `alembic/versions/0006_add_matching_tables.py` + `app/api/matching.py` — Marker Making Phase 2
+  Slice 2's one platform-side schema addition: `dmp.matching_rule_tables` (plaid/stripe matching
+  config: method, plaid/stripe repeat, and opaque `offsets_json`/`stripe_definitions_json`/
+  `stripe_marks_json`, mirroring the opaque-payload philosophy `marker_pieces.placement_data`
+  already established) plus `markers.matching_rule_table_id`. This platform stores and returns
+  that JSON faithfully — it does not interpret stripe/offset structure; that's
+  [`marker-making-service`](../marker-making-service)'s job. `tests/test_matching.py` covers CRUD,
+  the sub-resource full-replace endpoints, marker linkage (including a cross-org guard), the
+  delete-while-referenced conflict, and permission enforcement; `tests/test_constraints.py` covers
+  the `method` CHECK and `(organization_id, name)` UNIQUE constraints.
+
 ## Useful commands
 
 ```bash

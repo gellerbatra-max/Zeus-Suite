@@ -6,7 +6,16 @@ mappings are declared (Milestone 1 kept the model layer intentionally plain)."""
 from sqlalchemy.orm import Session
 
 from app import schemas
-from app.models import Bundle, Folder, Marker, Order, Piece, Style, WorkflowStatus
+from app.models import (
+    Bundle,
+    Folder,
+    Marker,
+    MatchingRuleTable,
+    Order,
+    Piece,
+    Style,
+    WorkflowStatus,
+)
 
 
 def workflow_status_out(session: Session, status_id: int) -> schemas.WorkflowStatusOut:
@@ -64,11 +73,28 @@ def marker_out(session: Session, marker: Marker) -> schemas.MarkerOut:
         ply_count=marker.ply_count,
         utilization_pct=marker.utilization_pct,
         matching_method=marker.matching_method,
+        matching_rule_table_id=marker.matching_rule_table_id,
         current_version_id=marker.current_version_id,
         workflow_status=workflow_status_out(session, marker.workflow_status_id),
         version=marker.version,
         created_at=marker.created_at,
         created_by=marker.created_by,
+    )
+
+
+def matching_rule_table_out(session: Session, row: MatchingRuleTable) -> schemas.MatchingRuleTableOut:
+    return schemas.MatchingRuleTableOut(
+        id=row.id,
+        name=row.name,
+        method=row.method,
+        plaid_repeat=row.plaid_repeat,
+        stripe_repeat=row.stripe_repeat,
+        offsets_json=row.offsets_json,
+        stripe_definitions_json=row.stripe_definitions_json,
+        stripe_marks_json=row.stripe_marks_json,
+        version=row.version,
+        created_at=row.created_at,
+        created_by=row.created_by,
     )
 
 

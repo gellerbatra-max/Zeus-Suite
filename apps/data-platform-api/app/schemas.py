@@ -185,6 +185,7 @@ class MarkerPatch(BaseModel):
     marker_name: str | None = None
     fabric_width: float | None = None
     matching_method: str | None = None
+    matching_rule_table_id: uuid.UUID | None = None
 
 
 class MarkerOut(BaseModel):
@@ -198,6 +199,7 @@ class MarkerOut(BaseModel):
     ply_count: int | None
     utilization_pct: float | None
     matching_method: str | None
+    matching_rule_table_id: uuid.UUID | None
     current_version_id: uuid.UUID | None
     workflow_status: WorkflowStatusOut
     version: int
@@ -215,6 +217,46 @@ class MarkerPieceIn(BaseModel):
 
 class MarkerPieceOut(MarkerPieceIn):
     pass
+
+
+# -- Matching rule tables (Marker Making Sec 1.4/2, new) ------------------------------------------
+
+
+class MatchingRuleTableCreate(BaseModel):
+    name: str
+    method: str
+    plaid_repeat: float | None = None
+    stripe_repeat: float | None = None
+
+
+class MatchingRuleTablePatch(BaseModel):
+    name: str | None = None
+    method: str | None = None
+    plaid_repeat: float | None = None
+    stripe_repeat: float | None = None
+
+
+class MatchingRuleTableOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    method: str
+    plaid_repeat: float | None
+    stripe_repeat: float | None
+    offsets_json: dict[str, Any] | None
+    stripe_definitions_json: list[dict[str, Any]]
+    stripe_marks_json: list[dict[str, Any]]
+    version: int
+    created_at: datetime
+    created_by: uuid.UUID
+
+
+class OffsetsReplace(BaseModel):
+    horizontal: list[float] = []
+    vertical: list[float] = []
+
+
+class JsonArrayReplace(BaseModel):
+    items: list[dict[str, Any]]
 
 
 # -- Orders and bundles (4.6) --------------------------------------------------------------------

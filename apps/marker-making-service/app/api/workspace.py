@@ -95,6 +95,8 @@ def _assemble_workspace(marker_id: str, client: PlatformClient) -> WorkspaceOut:
         workflow_status=marker["workflow_status"]["code"],
         order_id=marker.get("order_id"),
         style_id=style["id"] if style else None,
+        matching_method=marker.get("matching_method"),
+        matching_rule_table_id=marker.get("matching_rule_table_id"),
         available_pieces=available_pieces,
         placements=placements,
     )

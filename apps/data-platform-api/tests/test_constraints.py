@@ -6,7 +6,15 @@ import uuid
 import pytest
 from sqlalchemy.exc import IntegrityError
 
-from app.models import Bundle, Folder, Organization, Piece, User, WorkflowStatus
+from app.models import (
+    Bundle,
+    Folder,
+    MatchingRuleTable,
+    Organization,
+    Piece,
+    User,
+    WorkflowStatus,
+)
 
 
 def _seed_org_user_folder(session, unique: str):
@@ -122,6 +130,44 @@ def test_duplicate_piece_code_in_same_folder_rejected(db_session):
         workflow_status_id=status_id,
         created_by=user.id,
         updated_by=user.id,
+    )
+    session.add(duplicate)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()
+
+
+def test_matching_rule_table_invalid_method_rejected(db_session):
+    session = db_session
+    unique = uuid.uuid4().hex[:8]
+    org, user, _folder = _seed_org_user_folder(session, unique)
+
+    bad_table = MatchingRuleTable(
+        organization_id=org.id,
+        name=f"Bad Method {unique}",
+        method="not_a_real_method",
+        created_by=user.id,
+        updated_by=user.id,
+    )
+    session.add(bad_table)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()
+
+
+def test_matching_rule_table_duplicate_name_in_same_org_rejected(db_session):
+    session = db_session
+    unique = uuid.uuid4().hex[:8]
+    org, user, _folder = _seed_org_user_folder(session, unique)
+
+    first = MatchingRuleTable(
+        organization_id=org.id, name=f"DUP-{unique}", method="standard", created_by=user.id, updated_by=user.id,
+    )
+    session.add(first)
+    session.flush()
+
+    duplicate = MatchingRuleTable(
+        organization_id=org.id, name=f"DUP-{unique}", method="five_star", created_by=user.id, updated_by=user.id,
     )
     session.add(duplicate)
     with pytest.raises(IntegrityError):

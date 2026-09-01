@@ -1,6 +1,7 @@
 import type { DragEvent } from 'react'
-import { Group, Layer, Rect, Stage, Text } from 'react-konva'
+import { Arrow, Circle, Group, Layer, Rect, Stage, Text } from 'react-konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
+import type { MatchGuidanceOut } from '../api/types'
 
 export interface CanvasPlacement {
   pieceId: string
@@ -14,6 +15,7 @@ export interface CanvasPlacement {
   height: number
   sizeCode: string
   quantity: number
+  stripeMarkId: string | null
 }
 
 interface Props {
@@ -22,15 +24,27 @@ interface Props {
   placements: CanvasPlacement[]
   onPlace: (pieceId: string, x: number, y: number) => void
   onMove: (pieceId: string, x: number, y: number) => void
+  onDragMove?: (pieceId: string, x: number, y: number) => void
   onSelect: (pieceId: string | null) => void
   selectedPieceId: string | null
+  guidance?: { pieceId: string; result: MatchGuidanceOut } | null
 }
 
 function boundingBoxesOverlap(a: CanvasPlacement, b: CanvasPlacement): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
 }
 
-export function MarkerCanvas({ markerWidth, markerHeight, placements, onPlace, onMove, onSelect, selectedPieceId }: Props) {
+export function MarkerCanvas({
+  markerWidth,
+  markerHeight,
+  placements,
+  onPlace,
+  onMove,
+  onDragMove,
+  onSelect,
+  selectedPieceId,
+  guidance,
+}: Props) {
   const overlapping = new Set<string>()
   for (let i = 0; i < placements.length; i++) {
     for (let j = i + 1; j < placements.length; j++) {
@@ -64,6 +78,7 @@ export function MarkerCanvas({ markerWidth, markerHeight, placements, onPlace, o
               x={p.x}
               y={p.y}
               draggable
+              onDragMove={(e) => onDragMove?.(p.pieceId, e.target.x(), e.target.y())}
               onDragEnd={(e) => onMove(p.pieceId, e.target.x(), e.target.y())}
               onClick={() => onSelect(p.pieceId)}
               onTap={() => onSelect(p.pieceId)}
@@ -90,9 +105,33 @@ export function MarkerCanvas({ markerWidth, markerHeight, placements, onPlace, o
                 x={p.flipX ? p.width : 0}
                 y={p.flipY ? p.height : 0}
               />
+              {p.stripeMarkId && (
+                <Circle x={6} y={6} radius={4} fill="#c0392b" stroke="#ffffff" strokeWidth={1} />
+              )}
             </Group>
           ))}
         </Layer>
+        {guidance && guidance.result.targets.length > 0 && (
+          <Layer listening={false}>
+            {guidance.result.targets.map((target, i) => {
+              const piece = placements.find((p) => p.pieceId === guidance.pieceId)
+              if (!piece) return null
+              const fromX = piece.x + piece.width / 2
+              const fromY = piece.y + piece.height / 2
+              return (
+                <Arrow
+                  key={i}
+                  points={[fromX, fromY, target.target_x, target.target_y]}
+                  stroke="#2e8b57"
+                  fill="#2e8b57"
+                  strokeWidth={2}
+                  pointerLength={8}
+                  pointerWidth={8}
+                />
+              )
+            })}
+          </Layer>
+        )}
       </Stage>
     </div>
   )

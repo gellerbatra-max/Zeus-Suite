@@ -1,6 +1,6 @@
 # marker-making-app
 
-Marker Making's manual-nesting canvas, Phase 2 Slice 1 (see
+Marker Making's manual-nesting canvas, Phase 2 Slices 1-2 (see
 [`docs/planning/03_marker_making_production/marker_making_production_plan.md`](../../docs/planning/03_marker_making_production/marker_making_production_plan.md)).
 React + TypeScript + Vite + [Konva.js](https://konvajs.org/), talking to
 [`marker-making-service`](../marker-making-service) (which itself has no database — see that
@@ -15,6 +15,16 @@ service's README for the full architecture).
   synthetic width/height — Pattern Design doesn't exist yet, so there's no real silhouette geometry
   to render.
 - **Piece tray** (`PieceTray.tsx`) — the style's pieces not yet placed on this marker.
+- **Matching panel** (`MatchingPanel.tsx`, Phase 2 Slice 2) — create/select a matching rule table,
+  choose Standard/5-Star method, enter Standard's repeat offsets, define stripe geometry, add/edit/
+  delete/step-through named stripe marks, assign the selected canvas piece to a mark, and run
+  bite-boundary validation. Dragging a piece that has an assigned stripe mark calls the guidance
+  endpoint (throttled ~150ms) and the canvas renders a green vector arrow toward the nearest valid
+  grid point, with a "Matching Location Not Found" banner when none is within tolerance — a small
+  red tick on a placed piece marks that it has a stripe mark assigned. **Known limitation**: there's
+  no way to *unset* a marker's rule table once linked from this UI (or the API underneath it) —
+  `PATCH` treats `null` as "field not provided," same as every other field on that resource, so
+  selecting "(none)" in the rule-table dropdown updates local state but not the persisted marker.
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -44,8 +54,19 @@ npm run build     # production build
 
 ## Verified manually
 
-Opened a real marker's workspace, placed 3 synthetic pieces via drag-and-drop, rotated one, saved
-(confirmed the platform's real workflow-transition graph walks `unmade → needs_approval → made`
-across two calls, not a single direct hop), reloaded the page and confirmed the placements
-persisted through the real platform API, then submitted an Auto-Nest job and watched the UI poll
-it to `succeeded` after the platform's worker drained it.
+**Slice 1**: opened a real marker's workspace, placed 3 synthetic pieces via drag-and-drop, rotated
+one, saved (confirmed the platform's real workflow-transition graph walks
+`unmade → needs_approval → made` across two calls, not a single direct hop), reloaded the page and
+confirmed the placements persisted through the real platform API, then submitted an Auto-Nest job
+and watched the UI poll it to `succeeded` after the platform's worker drained it.
+
+**Slice 2** (matching): created a matching rule table through the panel, selected Standard method,
+added a stripe definition (h_distance=40) and a stripe mark against it, placed a piece and assigned
+it to that mark (a red tick appeared), dragged the piece and watched a live green guidance arrow
+plus the "Matching Location Not Found" banner render from the real `/matching/guidance` endpoint,
+saved and reloaded to confirm the marker's `placement_data.stripe_mark_id` and matching method/rule
+table all persisted through the real platform API (verified directly via
+`GET /markers/{id}/pieces`), and ran Validate Bite to confirm "No bite-boundary violations." with
+a single piece (the violation-detected/cleared path is covered by
+`marker-making-service`'s automated test instead, since it needs 1-canvas-unit precision that isn't
+meaningful to demonstrate via manual mouse dragging).

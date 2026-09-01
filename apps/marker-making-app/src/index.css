@@ -79,7 +79,7 @@ input {
 .app__main {
   flex: 1;
   display: grid;
-  grid-template-columns: 220px 1fr 280px;
+  grid-template-columns: 220px 1fr 300px 260px;
   gap: 20px;
   padding: 20px;
   align-items: start;
@@ -224,4 +224,128 @@ input {
 
 .error-text {
   color: #b3261e;
+}
+
+.matching-warning {
+  color: #7a5c00;
+  background: #fff3cd;
+  border: 1px solid #e8d27a;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  display: inline-block;
+}
+
+/* Matching panel */
+
+.matching-panel {
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.matching-panel h3 {
+  margin-top: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.matching-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.matching-panel__section:last-child {
+  border-bottom: none;
+}
+
+.matching-panel__section label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.matching-panel__inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.matching-panel__inline-form input,
+.matching-panel__inline-form select {
+  flex: 1;
+  min-width: 80px;
+}
+
+.matching-panel__radio-row {
+  display: flex;
+  gap: 14px;
+  font-size: 0.85rem;
+}
+
+.matching-panel__radio-row label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  text-transform: none;
+  font-size: 0.85rem;
+}
+
+.matching-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.matching-panel__list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.matching-panel__mark-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.matching-panel__mark-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  padding: 4px 0;
+}
+
+.matching-panel__mark-actions {
+  display: flex;
+  gap: 4px;
+}
+
+.matching-panel__mark-actions button {
+  padding: 3px 6px;
+  font-size: 0.72rem;
+}
+
+.matching-panel__ok {
+  color: #1e7e34;
+  font-size: 0.8rem;
 }

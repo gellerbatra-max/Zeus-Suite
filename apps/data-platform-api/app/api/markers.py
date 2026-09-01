@@ -15,8 +15,15 @@ from app.deps import (
     get_request_id,
     require_permission,
 )
-from app.errors import conflict, not_found
-from app.models import Bundle, Marker, MarkerPiece, MarkerVersion, WorkflowStatus
+from app.errors import bad_request, conflict, not_found
+from app.models import (
+    Bundle,
+    Marker,
+    MarkerPiece,
+    MarkerVersion,
+    MatchingRuleTable,
+    WorkflowStatus,
+)
 from app.schemas import (
     BeginVersionRequest,
     BeginVersionResponse,
@@ -132,8 +139,13 @@ def patch_marker(
     )
     check_if_match_version(if_match_version, marker.version)
 
+    if body.matching_rule_table_id is not None:
+        table = db.get(MatchingRuleTable, body.matching_rule_table_id)
+        if table is None or table.deleted_at is not None or table.organization_id != actor.organization_id:
+            raise bad_request("matching_rule_table_id does not reference a valid matching rule table.")
+
     before = {"marker_name": marker.marker_name, "fabric_width": float(marker.fabric_width) if marker.fabric_width else None}
-    for field in ("marker_name", "fabric_width", "matching_method"):
+    for field in ("marker_name", "fabric_width", "matching_method", "matching_rule_table_id"):
         value = getattr(body, field)
         if value is not None:
             setattr(marker, field, value)
