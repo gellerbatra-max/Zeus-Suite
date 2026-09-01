@@ -1,7 +1,8 @@
 import { useRef, useState } from 'react'
 import { Arrow, Circle, Layer, Line, Stage, Text } from 'react-konva'
 import type Konva from 'konva'
-import type { Dart, FreePoint, GrainLine, InternalLine, Notch, Point, SeamAllowance } from '../api/types'
+import type { Dart, FreePoint, GradeRuleTable, GrainLine, InternalLine, Notch, Point, SeamAllowance } from '../api/types'
+import { gradedPerimeter, nestColorFor } from '../grading'
 
 // Geometry is authored/stored in real-world mm (pattern_design_plan.md Sec 3.3/6.2) and mapped to
 // canvas pixels through a single zoom/pan transform shared by every layer -- Konva's Stage
@@ -42,7 +43,8 @@ function centroidOf(points: { x: number; y: number }[]): { x: number; y: number 
 //   dart        - click three points in sequence (leg, apex, leg) to add a dart
 //   notch       - click an existing perimeter point to toggle a notch there
 //   grain-line  - click two points in sequence to set the piece's single grain line
-export type Tool = 'draw' | 'edit' | 'add-line' | 'delete-line' | 'seam' | 'dart' | 'notch' | 'grain-line'
+//   grade       - click an existing perimeter point to set its X/Y delta for the active size step
+export type Tool = 'draw' | 'edit' | 'add-line' | 'delete-line' | 'seam' | 'dart' | 'notch' | 'grain-line' | 'grade'
 
 interface Props {
   points: Point[]
@@ -51,6 +53,9 @@ interface Props {
   darts: Dart[]
   notches: Notch[]
   grainLine: GrainLine | null
+  gradeRuleTable: GradeRuleTable | null
+  activeSizeStep: number | null
+  showGradeNest: boolean
   tool: Tool
   onAddPoint: (x: number, y: number) => void
   onMovePoint: (pointRef: string, from: { x: number; y: number }, to: { x: number; y: number }) => void
@@ -61,6 +66,7 @@ interface Props {
   onAddDart: (legA: FreePoint, apex: FreePoint, legB: FreePoint) => void
   onToggleNotch: (pointRef: string) => void
   onSetGrainLine: (start: FreePoint, end: FreePoint) => void
+  onGradePointClick: (pointRef: string) => void
 }
 
 export function PatternCanvas({
@@ -70,6 +76,9 @@ export function PatternCanvas({
   darts,
   notches,
   grainLine,
+  gradeRuleTable,
+  activeSizeStep,
+  showGradeNest,
   tool,
   onAddPoint,
   onMovePoint,
@@ -80,6 +89,7 @@ export function PatternCanvas({
   onAddDart,
   onToggleNotch,
   onSetGrainLine,
+  onGradePointClick,
 }: Props) {
   const stageRef = useRef<Konva.Stage>(null)
   const [scale, setScale] = useState(1)
@@ -99,6 +109,11 @@ export function PatternCanvas({
   const pointsByRef = new Map(effectivePoints.map((p) => [p.point_ref, p]))
   const notchedRefs = new Set(notches.map((n) => n.point_ref))
   const centroid = centroidOf(effectivePoints)
+  const gradedForActiveStep = new Set(
+    activeSizeStep === null
+      ? []
+      : (gradeRuleTable?.rules ?? []).filter((r) => r.size_step === activeSizeStep).map((r) => r.point_ref),
+  )
 
   const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault()
@@ -184,6 +199,8 @@ export function PatternCanvas({
       onToggleNotch(pointRef)
     } else if (tool === 'dart' || tool === 'grain-line') {
       handleFreePick(x, y)
+    } else if (tool === 'grade') {
+      onGradePointClick(pointRef)
     }
   }
 
@@ -358,7 +375,13 @@ export function PatternCanvas({
               x={p.x}
               y={p.y}
               radius={5 / scale}
-              fill={p.point_ref === lineStartRef || notchedRefs.has(p.point_ref) ? '#ffb84d' : '#ffffff'}
+              fill={
+                p.point_ref === lineStartRef || notchedRefs.has(p.point_ref)
+                  ? '#ffb84d'
+                  : gradedForActiveStep.has(p.point_ref)
+                    ? '#8e44ad'
+                    : '#ffffff'
+              }
               stroke="#2e5aac"
               strokeWidth={1.5 / scale}
               draggable={tool === 'edit'}
@@ -383,6 +406,42 @@ export function PatternCanvas({
             />
           ))}
         </Layer>
+
+        {/* Grade-nest overlay layer (pattern_design_plan.md Sec 6.1): every other size's outline,
+            low-opacity and color-coded, drawn on top of the base-size outline above. Its own layer
+            so toggling it is a visibility flip, not a re-render of the (potentially large)
+            geometry layer underneath. */}
+        {showGradeNest && gradeRuleTable && points.length >= 3 && (
+          <Layer listening={false}>
+            {gradeRuleTable.size_range
+              .filter((size) => size !== gradeRuleTable.base_size)
+              .map((size, i) => {
+                const outline = gradedPerimeter(points, gradeRuleTable, size)
+                const flat = outline.flatMap((p) => [p.x, p.y])
+                return (
+                  <Line key={size} points={flat} closed stroke={nestColorFor(i)} strokeWidth={1.5 / scale} opacity={0.55} />
+                )
+              })}
+            {gradeRuleTable.size_range
+              .filter((size) => size !== gradeRuleTable.base_size)
+              .map((size, i) => {
+                const outline = gradedPerimeter(points, gradeRuleTable, size)
+                const label = outline[0]
+                if (!label) return null
+                return (
+                  <Text
+                    key={`${size}-label`}
+                    x={label.x + 6 / scale}
+                    y={label.y - 14 / scale}
+                    text={size}
+                    fontSize={12 / scale}
+                    fill={nestColorFor(i)}
+                    opacity={0.85}
+                  />
+                )
+              })}
+          </Layer>
+        )}
       </Stage>
       <div className="pattern-canvas__hint">
         {tool === 'draw' && 'Click to add perimeter points.'}
@@ -396,6 +455,10 @@ export function PatternCanvas({
         {tool === 'notch' && 'Click a perimeter point to add or remove a notch.'}
         {tool === 'grain-line' &&
           `Click two points to set the grain line (${pendingClicks.length}/2 picked).`}
+        {tool === 'grade' &&
+          (activeSizeStep === null
+            ? 'Set a size range and pick a step to grade first.'
+            : 'Click a perimeter point to set its X/Y delta for the active step.')}
       </div>
     </div>
   )

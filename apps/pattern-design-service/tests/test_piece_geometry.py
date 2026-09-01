@@ -170,6 +170,47 @@ def test_seam_dart_notch_grain_line_round_trip():
     assert reloaded["grain_line"] == geometry["grain_line"]
 
 
+def test_grade_rule_table_round_trips_with_perimeter():
+    """Phase 2.4: a grade rule table (size range + base size + per-point, per-step deltas)
+    saves and reloads alongside the perimeter it grades."""
+    unique = unique_suffix()
+    headers, folder = _seed_folder(unique)
+
+    piece = client.post(
+        "/pieces",
+        json={"folder_id": folder["id"], "piece_code": f"FRONT-{unique}", "piece_name": "Front Panel"},
+        headers=headers,
+    ).json()
+
+    geometry = {
+        "schema_version": 1,
+        "units": "mm",
+        "perimeter": [
+            {"point_ref": "p1", "x": 0.0, "y": 0.0, "type": "corner"},
+            {"point_ref": "p2", "x": 200.0, "y": 0.0, "type": "corner"},
+            {"point_ref": "p3", "x": 200.0, "y": 300.0, "type": "corner"},
+            {"point_ref": "p4", "x": 0.0, "y": 300.0, "type": "corner"},
+        ],
+        "grade_rule_table": {
+            "size_range": ["S", "M", "L"],
+            "base_size": "M",
+            "rules": [
+                {"point_ref": "p2", "size_step": 0, "delta_x": 5.0, "delta_y": 0.0},
+                {"point_ref": "p2", "size_step": 1, "delta_x": 5.0, "delta_y": 0.0},
+                {"point_ref": "p3", "size_step": 0, "delta_x": 5.0, "delta_y": 8.0},
+                {"point_ref": "p3", "size_step": 1, "delta_x": 5.0, "delta_y": 8.0},
+            ],
+        },
+    }
+    resp = client.put(f"/pieces/{piece['id']}/geometry", json=geometry, headers=headers)
+    assert resp.status_code == 200, resp.text
+
+    resp = client.get(f"/pieces/{piece['id']}/geometry", headers=headers)
+    assert resp.status_code == 200, resp.text
+    reloaded = resp.json()
+    assert reloaded["grade_rule_table"] == geometry["grade_rule_table"]
+
+
 def test_status_transition_round_trips():
     unique = unique_suffix()
     headers, folder = _seed_folder(unique)

@@ -7,8 +7,8 @@ GEOMETRY_SCHEMA_VERSION = 1
 
 class Point(BaseModel):
     """A perimeter/internal point, keyed by a stable `point_ref` UUID assigned at creation time
-    and preserved across edits -- see pattern_design_plan.md Sec 3.3. Grade rules and measurement
-    points will reference points by this id once grading (Phase 2.4) exists; nothing does yet."""
+    and preserved across edits -- see pattern_design_plan.md Sec 3.3. `GradeRule.point_ref` (Phase
+    2.4) references points by this id; measurement points (Phase 2.5) will too."""
 
     point_ref: str
     x: float
@@ -83,6 +83,37 @@ class GrainLine(BaseModel):
     angle_deg: float
 
 
+class GradeRule(BaseModel):
+    """One point's X/Y growth for one step between two adjacent sizes in the grade rule table's
+    `size_range` (Richpeace's "Point Grading" / "Create new delta (X/Y) grading rule", Sec 4
+    Grading). `size_step` is the index into `size_range` of the *smaller* size in the step -- e.g.
+    for size_range ["S","M","L"], size_step 0 is the S->M increment, size_step 1 is M->L. This is
+    the real AccuMark/Gerber grading model (deltas between adjacent sizes, not absolute per-size
+    offsets), which is what lets a size outside the table's range still resolve by walking
+    cumulative deltas outward from the base size."""
+
+    point_ref: str
+    size_step: int
+    delta_x: float
+    delta_y: float
+
+
+class GradeRuleTable(BaseModel):
+    """A piece's grading definition. pattern_design_plan.md Sec 3.2 proposes `grade_rule_tables`/
+    `grade_rules` as their own Postgres tables (namespaced `pattern_design.*`); this keeps them in
+    the geometry document instead, for the same reason Sec 3.3 gives for not normalizing points
+    into per-point Postgres rows (doesn't scale to hundreds of points x tens of sizes), and because
+    Phase 2.1 explicitly deferred the decision of whether this app ever gets a database of its own
+    -- see pattern-design-service/README.md. `graded_pieces` (Sec 3.2's materialized per-size piece
+    records) is not built in this slice: grading is computed and reviewed live in the canvas
+    (pattern_design_plan.md Sec 5.2/6.1's grade-nest overlay) rather than persisted as separate
+    platform `pieces` rows per size."""
+
+    size_range: list[str]
+    base_size: str
+    rules: list[GradeRule] = []
+
+
 class PieceGeometryDocument(BaseModel):
     """One structured JSON document per piece per version (pattern_design_plan.md Sec 3.3).
     annotations is still carried as a placeholder for Phase 2.5 (Text/Annotation) -- nothing
@@ -96,6 +127,7 @@ class PieceGeometryDocument(BaseModel):
     darts: list[Dart] = []
     notches: list[Notch] = []
     grain_line: GrainLine | None = None
+    grade_rule_table: GradeRuleTable | None = None
     annotations: list[Any] = []
 
 

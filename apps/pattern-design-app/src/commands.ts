@@ -4,7 +4,17 @@
 // save still round-trips the whole document, per Phase 2.1), but the do/undo pairing is exactly
 // the shape that diffing would build on, and it's what backs the undo/redo stack now.
 
-import type { Dart, GrainLine, InternalLine, Notch, PieceGeometryDocument, Point, SeamAllowance } from './api/types'
+import type {
+  Dart,
+  GradeRule,
+  GradeRuleTable,
+  GrainLine,
+  InternalLine,
+  Notch,
+  PieceGeometryDocument,
+  Point,
+  SeamAllowance,
+} from './api/types'
 
 export interface Command {
   label: string
@@ -148,6 +158,35 @@ export function setGrainLineCommand(newLine: GrainLine | null, previousLine: Gra
     label: 'Set grain line',
     do: (doc) => ({ ...doc, grain_line: newLine }),
     undo: (doc) => ({ ...doc, grain_line: previousLine }),
+  }
+}
+
+// Defining/changing the size range resets any existing rules -- their size_step indices are
+// positions into the old size_range and would silently point at the wrong steps otherwise.
+export function setSizeRangeCommand(
+  sizeRange: string[],
+  baseSize: string,
+  previousTable: GradeRuleTable | null,
+): Command {
+  return {
+    label: 'Set size range',
+    do: (doc) => ({ ...doc, grade_rule_table: { size_range: sizeRange, base_size: baseSize, rules: [] } }),
+    undo: (doc) => ({ ...doc, grade_rule_table: previousTable }),
+  }
+}
+
+// A grade rule is keyed one-per-(point_ref, size_step) -- setting one that already exists
+// replaces it, so undo restores the whole previous table rather than tracking the single prior
+// rule (same pattern as setSeamCommand).
+export function setGradeRuleCommand(table: GradeRuleTable, rule: GradeRule): Command {
+  const nextRules = [
+    ...table.rules.filter((r) => !(r.point_ref === rule.point_ref && r.size_step === rule.size_step)),
+    rule,
+  ]
+  return {
+    label: 'Set grade rule',
+    do: (doc) => ({ ...doc, grade_rule_table: { ...table, rules: nextRules } }),
+    undo: (doc) => ({ ...doc, grade_rule_table: table }),
   }
 }
 

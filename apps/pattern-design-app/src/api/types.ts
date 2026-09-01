@@ -46,6 +46,22 @@ export interface GrainLine {
   angle_deg: number
 }
 
+// The delta from size_range[size_step] to size_range[size_step + 1] for one point (Richpeace's
+// "Point Grading" / "Create new delta grading rule") -- the real AccuMark/Gerber model, deltas
+// between adjacent sizes rather than absolute per-size offsets.
+export interface GradeRule {
+  point_ref: string
+  size_step: number
+  delta_x: number
+  delta_y: number
+}
+
+export interface GradeRuleTable {
+  size_range: string[]
+  base_size: string
+  rules: GradeRule[]
+}
+
 export interface PieceGeometryDocument {
   schema_version: number
   units: string
@@ -55,6 +71,7 @@ export interface PieceGeometryDocument {
   darts: Dart[]
   notches: Notch[]
   grain_line: GrainLine | null
+  grade_rule_table: GradeRuleTable | null
   annotations: unknown[]
 }
 

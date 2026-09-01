@@ -4,6 +4,7 @@ import { PieceList } from './components/PieceList'
 import { PatternCanvas } from './components/PatternCanvas'
 import type { Tool } from './components/PatternCanvas'
 import { ShapeTools } from './components/ShapeTools'
+import { GradingTools } from './components/GradingTools'
 import { api, ApiError } from './api/client'
 import type { FolderOut, FreePoint, InternalLine, PieceGeometryDocument, PieceOut, Point } from './api/types'
 import {
@@ -16,8 +17,10 @@ import {
   movePointCommand,
   removeNotchCommand,
   replaceShapeCommand,
+  setGradeRuleCommand,
   setGrainLineCommand,
   setSeamCommand,
+  setSizeRangeCommand,
 } from './commands'
 import type { Command } from './commands'
 import { circlePerimeter, rectanglePerimeter } from './shapes'
@@ -33,6 +36,7 @@ const TOOL_LABELS: Record<Tool, string> = {
   dart: 'Dart',
   notch: 'Notch',
   'grain-line': 'Grain Line',
+  grade: 'Grade',
 }
 
 function emptyGeometry(): PieceGeometryDocument {
@@ -45,6 +49,7 @@ function emptyGeometry(): PieceGeometryDocument {
     darts: [],
     notches: [],
     grain_line: null,
+    grade_rule_table: null,
     annotations: [],
   }
 }
@@ -96,6 +101,11 @@ export default function App() {
   const [seamValue, setSeamValue] = useState('10')
   const [pendingDart, setPendingDart] = useState<{ legA: FreePoint; apex: FreePoint; legB: FreePoint } | null>(null)
   const [dartValue, setDartValue] = useState('20')
+  const [activeSizeStep, setActiveSizeStep] = useState<number | null>(null)
+  const [showGradeNest, setShowGradeNest] = useState(false)
+  const [pendingGradePoint, setPendingGradePoint] = useState<string | null>(null)
+  const [gradeDeltaX, setGradeDeltaX] = useState('0')
+  const [gradeDeltaY, setGradeDeltaY] = useState('0')
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -185,14 +195,18 @@ export default function App() {
     setTool(doc.perimeter.length === 0 ? 'draw' : 'edit')
     setPendingSeamEdge(null)
     setPendingDart(null)
+    setPendingGradePoint(null)
+    setActiveSizeStep(null)
+    setShowGradeNest(false)
   }
 
-  // Switching tools mid-sequence abandons any pending seam/dart pick rather than leaving stale
-  // inline-input UI referencing points from before the switch.
+  // Switching tools mid-sequence abandons any pending seam/dart/grade pick rather than leaving
+  // stale inline-input UI referencing points from before the switch.
   const changeTool = (next: Tool) => {
     setTool(next)
     setPendingSeamEdge(null)
     setPendingDart(null)
+    setPendingGradePoint(null)
   }
 
   const createPiece = async (pieceCode: string, pieceName: string) => {
@@ -308,6 +322,44 @@ export default function App() {
     runCommand(setGrainLineCommand(null, geometry.grain_line))
   }
 
+  const setSizeRange = (sizeRange: string[], baseSize: string) => {
+    if (
+      geometry.grade_rule_table &&
+      geometry.grade_rule_table.rules.length > 0 &&
+      !window.confirm('Changing the size range clears all existing grade rules. Continue?')
+    ) {
+      return
+    }
+    runCommand(setSizeRangeCommand(sizeRange, baseSize, geometry.grade_rule_table))
+    setActiveSizeStep(null)
+  }
+
+  const beginGradeRule = (pointRef: string) => {
+    if (activeSizeStep === null || !geometry.grade_rule_table) return
+    const existing = geometry.grade_rule_table.rules.find(
+      (r) => r.point_ref === pointRef && r.size_step === activeSizeStep,
+    )
+    setGradeDeltaX(existing ? String(existing.delta_x) : '0')
+    setGradeDeltaY(existing ? String(existing.delta_y) : '0')
+    setPendingGradePoint(pointRef)
+  }
+
+  const applyGradeRule = () => {
+    if (!pendingGradePoint || activeSizeStep === null || !geometry.grade_rule_table) return
+    const deltaX = Number(gradeDeltaX)
+    const deltaY = Number(gradeDeltaY)
+    if (!Number.isFinite(deltaX) || !Number.isFinite(deltaY)) return
+    runCommand(
+      setGradeRuleCommand(geometry.grade_rule_table, {
+        point_ref: pendingGradePoint,
+        size_step: activeSizeStep,
+        delta_x: deltaX,
+        delta_y: deltaY,
+      }),
+    )
+    setPendingGradePoint(null)
+  }
+
   const replaceShape = (newPerimeter: Point[], label: string) => {
     if (geometry.perimeter.length > 0 && !window.confirm(`${label} will replace the current perimeter. Continue?`)) {
       return
@@ -401,7 +453,8 @@ export default function App() {
                   </button>
                   <span className="hint">
                     {geometry.perimeter.length} pt, {geometry.internal_lines.length} line,{' '}
-                    {geometry.seams.length} seam, {geometry.darts.length} dart, {geometry.notches.length} notch
+                    {geometry.seams.length} seam, {geometry.darts.length} dart, {geometry.notches.length} notch,{' '}
+                    {geometry.grade_rule_table?.rules.length ?? 0} grade rule
                     {geometry.grain_line ? ', grain line set' : ''}
                   </span>
                 </div>
@@ -418,7 +471,7 @@ export default function App() {
                     ))}
                   </div>
                   <div className="tool-group">
-                    {(['seam', 'dart', 'notch', 'grain-line'] as Tool[]).map((t) => (
+                    {(['seam', 'dart', 'notch', 'grain-line', 'grade'] as Tool[]).map((t) => (
                       <button
                         key={t}
                         className={t === tool ? 'tool-button tool-button--active' : 'tool-button'}
@@ -432,6 +485,16 @@ export default function App() {
                     Clear Grain Line
                   </button>
                 </div>
+                <GradingTools
+                  key={selectedPiece.id}
+                  table={geometry.grade_rule_table}
+                  activeSizeStep={activeSizeStep}
+                  onSetSizeRange={setSizeRange}
+                  onSetActiveSizeStep={setActiveSizeStep}
+                  showGradeNest={showGradeNest}
+                  onToggleGradeNest={setShowGradeNest}
+                  disabled={saving}
+                />
                 {pendingSeamEdge && (
                   <div className="app__toolbar">
                     <span className="hint">Seam allowance:</span>
@@ -462,6 +525,22 @@ export default function App() {
                     <button onClick={() => setPendingDart(null)}>Cancel</button>
                   </div>
                 )}
+                {pendingGradePoint && (
+                  <div className="app__toolbar">
+                    <span className="hint">Delta X:</span>
+                    <input
+                      type="number"
+                      value={gradeDeltaX}
+                      onChange={(e) => setGradeDeltaX(e.target.value)}
+                      autoFocus
+                    />
+                    <span className="hint">Delta Y:</span>
+                    <input type="number" value={gradeDeltaY} onChange={(e) => setGradeDeltaY(e.target.value)} />
+                    <span className="hint">mm</span>
+                    <button onClick={applyGradeRule}>Apply</button>
+                    <button onClick={() => setPendingGradePoint(null)}>Cancel</button>
+                  </div>
+                )}
                 <ShapeTools onRectangle={createRectangle} onCircle={createCircle} disabled={saving} />
                 <PatternCanvas
                   points={geometry.perimeter}
@@ -470,6 +549,9 @@ export default function App() {
                   darts={geometry.darts}
                   notches={geometry.notches}
                   grainLine={geometry.grain_line}
+                  gradeRuleTable={geometry.grade_rule_table}
+                  activeSizeStep={activeSizeStep}
+                  showGradeNest={showGradeNest}
                   tool={tool}
                   onAddPoint={addPoint}
                   onMovePoint={movePoint}
@@ -480,6 +562,7 @@ export default function App() {
                   onAddDart={beginDart}
                   onToggleNotch={toggleNotch}
                   onSetGrainLine={setGrainLine}
+                  onGradePointClick={beginGradeRule}
                 />
               </>
             ) : (
