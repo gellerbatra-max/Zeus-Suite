@@ -3,6 +3,7 @@ import { IdentityBar } from './components/IdentityBar'
 import { PieceTray } from './components/PieceTray'
 import { MarkerCanvas } from './components/MarkerCanvas'
 import type { CanvasPlacement } from './components/MarkerCanvas'
+import { overlapAmount } from './geometry'
 import { NestingJobPanel } from './components/NestingJobPanel'
 import { MatchingPanel } from './components/MatchingPanel'
 import { api, ApiError } from './api/client'
@@ -74,6 +75,15 @@ export default function App() {
     : []
 
   const selectedCutterStripeNeeded = placements.find((p) => p.pieceId === selectedPieceId)?.cutterStripeNeeded ?? true
+
+  const selectedOverlaps = (() => {
+    const selected = placements.find((p) => p.pieceId === selectedPieceId)
+    if (!selected) return []
+    return placements
+      .filter((p) => p.pieceId !== selected.pieceId)
+      .map((other) => ({ other, amount: overlapAmount(selected, other) }))
+      .filter((o): o is { other: CanvasPlacement; amount: { x: number; y: number } } => o.amount !== null)
+  })()
 
   const handlePlace = (pieceId: string, x: number, y: number) => {
     if (!workspace) return
@@ -196,6 +206,16 @@ export default function App() {
               guidance={guidance}
             />
             {guidance?.result.message && <p className="matching-warning">{guidance.result.message}</p>}
+            {selectedOverlaps.length > 0 && (
+              <ul className="overlap-readout">
+                {selectedOverlaps.map(({ other, amount }) => (
+                  <li key={other.pieceId}>
+                    Overlaps {other.pieceCode} by {Math.max(amount.x, amount.y).toFixed(1)}{' '}
+                    ({amount.x >= amount.y ? 'x' : 'y'}-axis)
+                  </li>
+                ))}
+              </ul>
+            )}
             <div className="piece-toolbar">
               <button disabled={!selectedPieceId} onClick={() => updateSelected((p) => ({ ...p, rotationDeg: (p.rotationDeg + 90) % 360 }))}>
                 Rotate 90°

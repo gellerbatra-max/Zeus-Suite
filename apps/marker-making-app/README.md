@@ -13,7 +13,11 @@ service's README for the full architecture).
   rotate (90° steps) / flip H / flip V / unplace. A red outline flags bounding-box overlap between
   placed pieces (visual only, no hard block). Each piece renders as a labeled rectangle with a
   synthetic width/height — Pattern Design doesn't exist yet, so there's no real silhouette geometry
-  to render.
+  to render. **Overlapped checking** (§1.4): selecting an overlapping piece reads out the max
+  overlap value against its neighbour(s) (`src/geometry.ts`'s `overlapAmount`, the axis-aligned
+  intrusion extent on each axis) just below the canvas — e.g. "Overlaps PANEL-B by 80.0 (y-axis)".
+  Same axis-aligned-bounding-box simplification as the overlap outline itself (no rotation-aware
+  polygon intersection).
 - **Piece tray** (`PieceTray.tsx`) — the style's pieces not yet placed on this marker.
 - **Matching panel** (`MatchingPanel.tsx`, Phase 2 Slice 2) — create/select a matching rule table,
   choose Standard/5-Star method, enter Standard's repeat offsets, define stripe geometry, add/edit/
@@ -80,3 +84,8 @@ meaningful to demonstrate via manual mouse dragging).
 button label updated to "Not Needed" — saved, and confirmed `placement_data.cutter_stripe_needed`
 persisted through the real platform API via `GET /markers/{id}/pieces`; then flipped it back and
 re-verified the same round trip in the other direction.
+
+**Overlapped checking**: seeded two pieces at `{x:50,y:50,w:80,h:100}` and `{x:100,y:70,w:80,h:100}`
+(hand-computed overlap: 30 on the x-axis, 80 on the y-axis), opened the marker, selected the second
+piece, and confirmed the readout under the canvas showed exactly "Overlaps PANEL-OV-A by 80.0
+(y-axis)" — matching the hand calculation and picking the correct (larger) axis.

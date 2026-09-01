@@ -2,6 +2,7 @@ import type { DragEvent } from 'react'
 import { Arrow, Circle, Group, Layer, Rect, Stage, Text } from 'react-konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
 import type { MatchGuidanceOut } from '../api/types'
+import { boundingBoxesOverlap } from '../geometry'
 
 export interface CanvasPlacement {
   pieceId: string
@@ -29,10 +30,6 @@ interface Props {
   onSelect: (pieceId: string | null) => void
   selectedPieceId: string | null
   guidance?: { pieceId: string; result: MatchGuidanceOut } | null
-}
-
-function boundingBoxesOverlap(a: CanvasPlacement, b: CanvasPlacement): boolean {
-  return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
 }
 
 export function MarkerCanvas({

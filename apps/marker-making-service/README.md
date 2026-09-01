@@ -94,9 +94,9 @@ bump lines, measure, etc.).
 Within matching (§1.4) specifically, Slice 2 built a scoped first pass — method selection
 (Standard/5-Star), the matching rules table with Standard's offset entry, Define Stripes geometry,
 Define Stripe Marks with Next/Prev step-through, basic in-canvas guidance, and basic bite-boundary
-validation, plus the cutter stripe setup toggle added just after — and explicitly deferred the rest:
-APSM/cutter-code generation, point-vs-line matching's line+label alternative (only the
+validation — plus the cutter stripe setup toggle and overlapped checking (frontend-only, see
+[`marker-making-app`](../marker-making-app)'s README) added just after — and explicitly deferred
+the rest: APSM/cutter-code generation, point-vs-line matching's line+label alternative (only the
 point/rule-table style is built), Define Material/Material Pattern (fabric reference image overlay
-— needs blob-storage plumbing orthogonal to geometry), Stripe-only-in-a-set, Overlapped checking
-(matching context), weave-line tools, and angled-stripe geometry in the guidance math (see
-`app/api/matching.py`'s docstring).
+— needs blob-storage plumbing orthogonal to geometry), Stripe-only-in-a-set, weave-line tools, and
+angled-stripe geometry in the guidance math (see `app/api/matching.py`'s docstring).

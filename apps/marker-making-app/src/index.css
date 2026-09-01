@@ -236,6 +236,17 @@ input {
   display: inline-block;
 }
 
+.overlap-readout {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  color: #b3261e;
+  font-size: 0.78rem;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
 /* Matching panel */
 
 .matching-panel {
