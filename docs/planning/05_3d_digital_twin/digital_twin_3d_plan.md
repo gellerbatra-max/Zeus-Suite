@@ -1,3 +1,15 @@
+> **CORRECTION (post-publication):** This document's "Grounded in" columns and its claim of
+> being "grounded directly in the documented current capabilities" of CLO3D, Browzwear, Optitex,
+> and Lectra Modaris are **not verified**. An audit of the authoring session found zero
+> `web_search` calls and no fetch of any vendor documentation — the catalogue below was written
+> directly, without checking it against real sources. Treat every "Grounded in: CLO/Browzwear/
+> Optitex/Modaris" citation in this document as an unverified, plausible-sounding claim, not a
+> sourced fact, until someone re-checks it against the vendors' actual public documentation. This
+> is unlike the Gerber/Richpeace catalogues elsewhere in this suite, which were extracted from
+> the real manual PDFs.
+
+---
+
 # 3D Virtual Sampling / Digital Twin — Unified Implementation Plan
 
 *The 5th application in the apparel CAD/CAM/MES suite. Added after market research (already on

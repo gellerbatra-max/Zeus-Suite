@@ -25,10 +25,12 @@
 
 5. **`05_3d_digital_twin/digital_twin_3d_plan.md`** — the 5th application, 3D Virtual Sampling /
    Digital Twin. Build alongside Production Output in Phase 3, once Pattern Design's piece format
-   is stable. Grounded in current CLO3D/Browzwear/Optitex/Lectra Modaris documentation (Gerber and
-   Richpeace don't cover 3D in comparable depth); reuses the platform's async-job pattern with a
-   GPU-backed worker tier, and documents a justified C++ exception to the suite's
-   Python-everywhere rule for the physics core.
+   is stable. **Caveat:** unlike every other catalogue in this package, this plan's function
+   catalogue was NOT verified against CLO3D/Browzwear/Optitex/Lectra Modaris vendor documentation
+   — despite an earlier claim to the contrary, no web search or document fetch occurred when it
+   was authored, so treat its named vendor capabilities as unverified until checked against real
+   sources. It reuses the platform's async-job pattern with a GPU-backed worker tier, and
+   documents a justified C++ exception to the suite's Python-everywhere rule for the physics core.
 
 6. **`06_ui_mockups/`** — high-fidelity visual reference for the Marker Making workspace screen.
    See that folder's own README for status (a live Figma design file exists but is currently

@@ -315,10 +315,15 @@ app -- see:
 - `pattern_design_plan.md`
 - `marker_making_production_plan.md`
 - `format_interchange_plan.md`
-- `digital_twin_3d_plan.md` -- the 3D Virtual Sampling / Digital Twin application, grounded in
-  current CLO3D/Browzwear/Optitex/Lectra Modaris documentation rather than the Gerber/Richpeace
-  manual set (neither covers 3D in comparable depth); reuses the platform's async-job pattern
-  with a GPU-backed worker tier for drape simulation, and documents an explicit, justified C++
-  exception to the suite's Python-everywhere backend rule for the physics core.
+- `digital_twin_3d_plan.md` -- the 3D Virtual Sampling / Digital Twin application. NOTE: this
+  plan's function catalogue was authored directly by the delegated sub-agent, NOT verified
+  against CLO3D/Browzwear/Optitex/Lectra Modaris vendor documentation as originally claimed --
+  no web_search or fetch of those vendors' docs occurred in that track's tool history. Treat the
+  named capabilities (avatar measurement counts, fabric analyzer behavior, material-library
+  sizes, etc.) as plausible-but-unverified until checked against real vendor sources, unlike the
+  Gerber/Richpeace catalogues elsewhere in this suite, which were extracted from the actual
+  manual PDFs. It reuses the platform's async-job pattern with a GPU-backed worker tier for
+  drape simulation, and documents an explicit, justified C++ exception to the suite's
+  Python-everywhere backend rule for the physics core.
 
 All five are included in the delivered package alongside this master plan.
