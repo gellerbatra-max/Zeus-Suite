@@ -4,7 +4,7 @@
 // save still round-trips the whole document, per Phase 2.1), but the do/undo pairing is exactly
 // the shape that diffing would build on, and it's what backs the undo/redo stack now.
 
-import type { InternalLine, PieceGeometryDocument, Point } from './api/types'
+import type { Dart, GrainLine, InternalLine, Notch, PieceGeometryDocument, Point, SeamAllowance } from './api/types'
 
 export interface Command {
   label: string
@@ -67,6 +67,87 @@ export function deleteLineCommand(line: InternalLine, index: number): Command {
       internal_lines.splice(index, 0, line)
       return { ...doc, internal_lines }
     },
+  }
+}
+
+// Seams are keyed one-per-edge (edge_ref) -- setting a seam on an edge that already has one
+// replaces it, so the whole previous `seams` array is what undo restores rather than trying to
+// track the single prior value.
+export function setSeamCommand(seam: SeamAllowance, previousSeams: SeamAllowance[]): Command {
+  return {
+    label: 'Set seam allowance',
+    do: (doc) => ({
+      ...doc,
+      seams: [...doc.seams.filter((s) => !sameEdge(s.edge_ref, seam.edge_ref)), seam],
+    }),
+    undo: (doc) => ({ ...doc, seams: previousSeams }),
+  }
+}
+
+function sameEdge(a: string[], b: string[]): boolean {
+  return a.length === b.length && a.every((ref) => b.includes(ref))
+}
+
+export function removeSeamCommand(seam: SeamAllowance, index: number): Command {
+  return {
+    label: 'Remove seam allowance',
+    do: (doc) => ({ ...doc, seams: doc.seams.filter((s) => !sameEdge(s.edge_ref, seam.edge_ref)) }),
+    undo: (doc) => {
+      const seams = [...doc.seams]
+      seams.splice(index, 0, seam)
+      return { ...doc, seams }
+    },
+  }
+}
+
+export function addDartCommand(dart: Dart): Command {
+  return {
+    label: 'Add dart',
+    do: (doc) => ({ ...doc, darts: [...doc.darts, dart] }),
+    undo: (doc) => ({ ...doc, darts: doc.darts.filter((d) => d.dart_ref !== dart.dart_ref) }),
+  }
+}
+
+export function removeDartCommand(dart: Dart, index: number): Command {
+  return {
+    label: 'Remove dart',
+    do: (doc) => ({ ...doc, darts: doc.darts.filter((d) => d.dart_ref !== dart.dart_ref) }),
+    undo: (doc) => {
+      const darts = [...doc.darts]
+      darts.splice(index, 0, dart)
+      return { ...doc, darts }
+    },
+  }
+}
+
+export function addNotchCommand(notch: Notch): Command {
+  return {
+    label: 'Add notch',
+    do: (doc) => ({ ...doc, notches: [...doc.notches, notch] }),
+    undo: (doc) => ({ ...doc, notches: doc.notches.filter((n) => n.point_ref !== notch.point_ref) }),
+  }
+}
+
+export function removeNotchCommand(notch: Notch, index: number): Command {
+  return {
+    label: 'Remove notch',
+    do: (doc) => ({ ...doc, notches: doc.notches.filter((n) => n.point_ref !== notch.point_ref) }),
+    undo: (doc) => {
+      const notches = [...doc.notches]
+      notches.splice(index, 0, notch)
+      return { ...doc, notches }
+    },
+  }
+}
+
+// One grain line per piece (Richpeace depth, Sec 4 -- the only category with no Gerber
+// equivalent at all), so setting a new one always replaces whatever was there. `newLine: null`
+// clears it.
+export function setGrainLineCommand(newLine: GrainLine | null, previousLine: GrainLine | null): Command {
+  return {
+    label: 'Set grain line',
+    do: (doc) => ({ ...doc, grain_line: newLine }),
+    undo: (doc) => ({ ...doc, grain_line: previousLine }),
   }
 }
 

@@ -116,6 +116,60 @@ def test_internal_line_round_trips_with_perimeter():
     assert reloaded["internal_lines"] == geometry["internal_lines"]
 
 
+def test_seam_dart_notch_grain_line_round_trip():
+    """Phase 2.3: seam allowance, a dart, a notch, and the grain line all save and reload
+    alongside the perimeter they reference."""
+    unique = unique_suffix()
+    headers, folder = _seed_folder(unique)
+
+    piece = client.post(
+        "/pieces",
+        json={"folder_id": folder["id"], "piece_code": f"BACK-{unique}", "piece_name": "Back Panel"},
+        headers=headers,
+    ).json()
+
+    geometry = {
+        "schema_version": 1,
+        "units": "mm",
+        "perimeter": [
+            {"point_ref": "p1", "x": 0.0, "y": 0.0, "type": "corner"},
+            {"point_ref": "p2", "x": 200.0, "y": 0.0, "type": "corner"},
+            {"point_ref": "p3", "x": 200.0, "y": 300.0, "type": "corner"},
+            {"point_ref": "p4", "x": 0.0, "y": 300.0, "type": "corner"},
+        ],
+        "seams": [
+            {"edge_ref": ["p1", "p2"], "allowance_mm": 10.0, "corner_type": "regular"},
+        ],
+        "darts": [
+            {
+                "dart_ref": "d1",
+                "leg_a": {"point_ref": "la", "x": 60.0, "y": 300.0},
+                "apex": {"point_ref": "ap", "x": 100.0, "y": 220.0},
+                "leg_b": {"point_ref": "lb", "x": 140.0, "y": 300.0},
+                "intake_mm": 25.0,
+            },
+        ],
+        "notches": [
+            {"point_ref": "p1", "notch_type": "V", "depth_mm": 5.0},
+        ],
+        "grain_line": {
+            "start": {"point_ref": "g1", "x": 100.0, "y": 30.0},
+            "end": {"point_ref": "g2", "x": 100.0, "y": 270.0},
+            "angle_deg": 90.0,
+        },
+    }
+    resp = client.put(f"/pieces/{piece['id']}/geometry", json=geometry, headers=headers)
+    assert resp.status_code == 200, resp.text
+
+    resp = client.get(f"/pieces/{piece['id']}/geometry", headers=headers)
+    assert resp.status_code == 200, resp.text
+    reloaded = resp.json()
+    assert reloaded["seams"] == geometry["seams"]
+    assert reloaded["darts"] == geometry["darts"]
+    assert reloaded["notches"] == geometry["notches"]
+    assert reloaded["grain_line"] == geometry["grain_line"]
+
+
 def test_status_transition_round_trips():
     unique = unique_suffix()
     headers, folder = _seed_folder(unique)

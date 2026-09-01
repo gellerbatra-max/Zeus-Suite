@@ -13,15 +13,48 @@ export interface InternalLine {
   line_type: string
 }
 
+export interface SeamAllowance {
+  edge_ref: string[]
+  allowance_mm: number
+  corner_type: string
+}
+
+// A point that isn't part of the perimeter -- a dart leg/apex or a grain line endpoint.
+export interface FreePoint {
+  point_ref: string
+  x: number
+  y: number
+}
+
+export interface Dart {
+  dart_ref: string
+  leg_a: FreePoint
+  apex: FreePoint
+  leg_b: FreePoint
+  intake_mm: number
+}
+
+export interface Notch {
+  point_ref: string
+  notch_type: string
+  depth_mm: number
+}
+
+export interface GrainLine {
+  start: FreePoint
+  end: FreePoint
+  angle_deg: number
+}
+
 export interface PieceGeometryDocument {
   schema_version: number
   units: string
   perimeter: Point[]
   internal_lines: InternalLine[]
-  seams: unknown[]
-  darts: unknown[]
-  notches: unknown[]
-  grain_line: unknown | null
+  seams: SeamAllowance[]
+  darts: Dart[]
+  notches: Notch[]
+  grain_line: GrainLine | null
   annotations: unknown[]
 }
 

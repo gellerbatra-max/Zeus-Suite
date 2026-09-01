@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import { Circle, Layer, Line, Stage } from 'react-konva'
+import { Arrow, Circle, Layer, Line, Stage, Text } from 'react-konva'
 import type Konva from 'konva'
-import type { InternalLine, Point } from '../api/types'
+import type { Dart, FreePoint, GrainLine, InternalLine, Notch, Point, SeamAllowance } from '../api/types'
 
 // Geometry is authored/stored in real-world mm (pattern_design_plan.md Sec 3.3/6.2) and mapped to
 // canvas pixels through a single zoom/pan transform shared by every layer -- Konva's Stage
@@ -26,38 +26,65 @@ function buildGridLines(): number[][] {
 
 const GRID_LINES = buildGridLines()
 
+function centroidOf(points: { x: number; y: number }[]): { x: number; y: number } {
+  if (points.length === 0) return { x: 0, y: 0 }
+  const sum = points.reduce((acc, p) => ({ x: acc.x + p.x, y: acc.y + p.y }), { x: 0, y: 0 })
+  return { x: sum.x / points.length, y: sum.y / points.length }
+}
+
 // One tool is active at a time (pattern_design_plan.md Sec 6.3: "Tools are registered against the
 // current mode ... so the same click-on-canvas gesture means different things per mode"):
 //   draw        - click empty canvas adds a perimeter point
 //   edit        - drag points to move them, double-click to delete
 //   add-line    - click two existing points in sequence to connect them with an internal line
 //   delete-line - click an internal line to delete it
-export type Tool = 'draw' | 'edit' | 'add-line' | 'delete-line'
+//   seam        - click a perimeter edge to set its seam allowance
+//   dart        - click three points in sequence (leg, apex, leg) to add a dart
+//   notch       - click an existing perimeter point to toggle a notch there
+//   grain-line  - click two points in sequence to set the piece's single grain line
+export type Tool = 'draw' | 'edit' | 'add-line' | 'delete-line' | 'seam' | 'dart' | 'notch' | 'grain-line'
 
 interface Props {
   points: Point[]
   internalLines: InternalLine[]
+  seams: SeamAllowance[]
+  darts: Dart[]
+  notches: Notch[]
+  grainLine: GrainLine | null
   tool: Tool
   onAddPoint: (x: number, y: number) => void
   onMovePoint: (pointRef: string, from: { x: number; y: number }, to: { x: number; y: number }) => void
   onDeletePoint: (index: number) => void
   onAddLine: (pointRefA: string, pointRefB: string) => void
   onDeleteLine: (index: number) => void
+  onSetSeam: (edgeRef: [string, string]) => void
+  onAddDart: (legA: FreePoint, apex: FreePoint, legB: FreePoint) => void
+  onToggleNotch: (pointRef: string) => void
+  onSetGrainLine: (start: FreePoint, end: FreePoint) => void
 }
 
 export function PatternCanvas({
   points,
   internalLines,
+  seams,
+  darts,
+  notches,
+  grainLine,
   tool,
   onAddPoint,
   onMovePoint,
   onDeletePoint,
   onAddLine,
   onDeleteLine,
+  onSetSeam,
+  onAddDart,
+  onToggleNotch,
+  onSetGrainLine,
 }: Props) {
   const stageRef = useRef<Konva.Stage>(null)
   const [scale, setScale] = useState(1)
   const [lineStartRef, setLineStartRef] = useState<string | null>(null)
+  const [pendingClicks, setPendingClicks] = useState<{ x: number; y: number }[]>([])
 
   // A drag gesture only commits one movePointCommand, on drag end -- not one per mousemove
   // event, which would flood the undo stack. dragOriginRef remembers the pre-drag position for
@@ -70,6 +97,8 @@ export function PatternCanvas({
   const effectivePoints =
     liveDrag === null ? points : points.map((p) => (p.point_ref === liveDrag.ref ? { ...p, x: liveDrag.x, y: liveDrag.y } : p))
   const pointsByRef = new Map(effectivePoints.map((p) => [p.point_ref, p]))
+  const notchedRefs = new Set(notches.map((n) => n.point_ref))
+  const centroid = centroidOf(effectivePoints)
 
   const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
     e.evt.preventDefault()
@@ -87,30 +116,84 @@ export function PatternCanvas({
     setScale(clamped)
   }
 
-  const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
-    // Points/lines are only draggable/clickable in the other three tools (see the Circle/Line
-    // props below), so a plain stage click here always means "empty canvas" once tool === 'draw'.
-    if (tool !== 'draw') return
-    if (e.target !== e.target.getStage()) return // clicked a point, not empty canvas
+  // Shared by both an empty-canvas click (dart apex, grain line endpoints don't have to land on
+  // an existing point) and a click on an existing point (dart legs / grain line often do) --
+  // either way, this tool only cares about the (x, y) that was clicked.
+  const handleFreePick = (x: number, y: number) => {
+    if (tool === 'dart') {
+      const next = [...pendingClicks, { x, y }]
+      if (next.length < 3) {
+        setPendingClicks(next)
+        return
+      }
+      const [a, apex, b] = next
+      onAddDart(
+        { point_ref: crypto.randomUUID(), x: a.x, y: a.y },
+        { point_ref: crypto.randomUUID(), x: apex.x, y: apex.y },
+        { point_ref: crypto.randomUUID(), x: b.x, y: b.y },
+      )
+      setPendingClicks([])
+    } else if (tool === 'grain-line') {
+      const next = [...pendingClicks, { x, y }]
+      if (next.length < 2) {
+        setPendingClicks(next)
+        return
+      }
+      const [start, end] = next
+      onSetGrainLine(
+        { point_ref: crypto.randomUUID(), x: start.x, y: start.y },
+        { point_ref: crypto.randomUUID(), x: end.x, y: end.y },
+      )
+      setPendingClicks([])
+    }
+  }
+
+  const pickAtPointer = () => {
     const stage = stageRef.current
     const pos = stage?.getRelativePointerPosition()
     if (!pos) return
-    onAddPoint(Math.round(pos.x), Math.round(pos.y))
+    handleFreePick(Math.round(pos.x), Math.round(pos.y))
   }
 
-  const handlePointClick = (pointRef: string) => {
-    if (tool !== 'add-line') return
-    if (lineStartRef === null) {
-      setLineStartRef(pointRef)
-      return
+  const handleStageClick = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+    if (e.target !== e.target.getStage()) return // a point/line/edge handles its own click
+    const stage = stageRef.current
+    const pos = stage?.getRelativePointerPosition()
+    if (!pos) return
+    if (tool === 'draw') onAddPoint(Math.round(pos.x), Math.round(pos.y))
+    else handleFreePick(Math.round(pos.x), Math.round(pos.y))
+  }
+
+  // The perimeter is a filled shape once closed, so a dart-apex or grain-line click that lands
+  // *inside* the piece (the common case -- a dart apex is usually interior, not off in empty
+  // space) hits this Line instead of empty stage, and would otherwise be silently swallowed by
+  // handleStageClick's "only empty canvas" guard above.
+  const handlePerimeterClick = () => {
+    if (tool === 'dart' || tool === 'grain-line') pickAtPointer()
+  }
+
+  const handlePointClick = (pointRef: string, x: number, y: number) => {
+    if (tool === 'add-line') {
+      if (lineStartRef === null) {
+        setLineStartRef(pointRef)
+        return
+      }
+      if (lineStartRef !== pointRef) onAddLine(lineStartRef, pointRef)
+      setLineStartRef(null)
+    } else if (tool === 'notch') {
+      onToggleNotch(pointRef)
+    } else if (tool === 'dart' || tool === 'grain-line') {
+      handleFreePick(x, y)
     }
-    if (lineStartRef !== pointRef) {
-      onAddLine(lineStartRef, pointRef)
-    }
-    setLineStartRef(null)
   }
 
   const flatPoints = effectivePoints.flatMap((p) => [p.x, p.y])
+  const edges: [Point, Point][] =
+    effectivePoints.length >= 3
+      ? effectivePoints.map((p, i) => [p, effectivePoints[(i + 1) % effectivePoints.length]])
+      : effectivePoints.length === 2
+        ? [[effectivePoints[0], effectivePoints[1]]]
+        : []
 
   return (
     <div className="pattern-canvas">
@@ -134,8 +217,7 @@ export function PatternCanvas({
           <Line points={[0, -GRID_EXTENT, 0, GRID_EXTENT]} stroke="#9aa1af" strokeWidth={1.5 / scale} />
         </Layer>
 
-        {/* Piece geometry layer: perimeter + internal lines (Phase 2.2). Seams, darts, notches, and
-            grain line are Phase 2.3. */}
+        {/* Piece geometry layer: perimeter, internal lines, seams, darts, notches, grain line. */}
         <Layer>
           {points.length >= 2 && (
             <Line
@@ -144,8 +226,55 @@ export function PatternCanvas({
               stroke="#2e5aac"
               strokeWidth={2 / scale}
               fill="rgba(46,90,172,0.08)"
+              onClick={handlePerimeterClick}
+              onTap={handlePerimeterClick}
             />
           )}
+
+          {/* Invisible-ish per-edge hit targets, only interactive in the seam tool -- the visible
+              perimeter Line above is one shape and can't report which segment was clicked. */}
+          {tool === 'seam' &&
+            edges.map(([a, b], i) => (
+              <Line
+                key={`edge-${i}`}
+                points={[a.x, a.y, b.x, b.y]}
+                stroke="#2e5aac"
+                strokeWidth={2 / scale}
+                hitStrokeWidth={16 / scale}
+                onClick={() => onSetSeam([a.point_ref, b.point_ref])}
+                onTap={() => onSetSeam([a.point_ref, b.point_ref])}
+              />
+            ))}
+
+          {seams.map((seam) => {
+            const a = pointsByRef.get(seam.edge_ref[0])
+            const b = pointsByRef.get(seam.edge_ref[1])
+            if (!a || !b) return null
+            const dx = b.x - a.x
+            const dy = b.y - a.y
+            const len = Math.hypot(dx, dy) || 1
+            let px = -dy / len
+            let py = dx / len
+            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+            // Point the offset away from the piece's centroid, i.e. outward.
+            if (px * (mid.x - centroid.x) + py * (mid.y - centroid.y) < 0) {
+              px = -px
+              py = -py
+            }
+            const offset = seam.allowance_mm
+            const oa = { x: a.x + px * offset, y: a.y + py * offset }
+            const ob = { x: b.x + px * offset, y: b.y + py * offset }
+            return (
+              <Line
+                key={`seam-${seam.edge_ref.join('-')}`}
+                points={[oa.x, oa.y, ob.x, ob.y]}
+                stroke="#1e7e34"
+                strokeWidth={1.5 / scale}
+                dash={[6 / scale, 3 / scale]}
+                listening={false}
+              />
+            )
+          })}
 
           {internalLines.map((line, i) => {
             const a = pointsByRef.get(line.point_refs[0])
@@ -165,13 +294,71 @@ export function PatternCanvas({
             )
           })}
 
+          {darts.map((dart) => (
+            <Line
+              key={dart.dart_ref}
+              points={[dart.leg_a.x, dart.leg_a.y, dart.apex.x, dart.apex.y, dart.leg_b.x, dart.leg_b.y]}
+              stroke="#b3261e"
+              strokeWidth={1.5 / scale}
+              listening={false}
+            />
+          ))}
+          {darts.map((dart) => (
+            <Text
+              key={`${dart.dart_ref}-label`}
+              x={dart.apex.x + 6 / scale}
+              y={dart.apex.y}
+              text={`${dart.intake_mm}mm`}
+              fontSize={11 / scale}
+              fill="#b3261e"
+              listening={false}
+            />
+          ))}
+
+          {notches.map((notch) => {
+            const p = pointsByRef.get(notch.point_ref)
+            if (!p) return null
+            const dx = centroid.x - p.x
+            const dy = centroid.y - p.y
+            const len = Math.hypot(dx, dy) || 1
+            const tipX = p.x + (dx / len) * notch.depth_mm
+            const tipY = p.y + (dy / len) * notch.depth_mm
+            return (
+              <Line
+                key={`notch-${notch.point_ref}`}
+                points={[p.x, p.y, tipX, tipY]}
+                stroke="#7a5c00"
+                strokeWidth={2.5 / scale}
+                listening={false}
+              />
+            )
+          })}
+
+          {grainLine && (
+            <Arrow
+              points={[grainLine.start.x, grainLine.start.y, grainLine.end.x, grainLine.end.y]}
+              stroke="#1a1a1e"
+              fill="#1a1a1e"
+              strokeWidth={1.5 / scale}
+              pointerAtBeginning
+              pointerAtEnding
+              pointerLength={8 / scale}
+              pointerWidth={6 / scale}
+              listening={false}
+            />
+          )}
+
+          {pendingClicks.map((c, i) => (
+            <Circle key={`pending-${i}`} x={c.x} y={c.y} radius={4 / scale} fill="#ffb84d" listening={false} />
+          ))}
+
           {effectivePoints.map((p, i) => (
             <Circle
               key={p.point_ref}
               x={p.x}
               y={p.y}
               radius={5 / scale}
-              fill={p.point_ref === lineStartRef ? '#ffb84d' : '#ffffff'}
+              fill={p.point_ref === lineStartRef || notchedRefs.has(p.point_ref) ? '#ffb84d' : '#ffffff'}
               stroke="#2e5aac"
               strokeWidth={1.5 / scale}
               draggable={tool === 'edit'}
@@ -191,8 +378,8 @@ export function PatternCanvas({
               }}
               onDblClick={() => tool === 'edit' && onDeletePoint(i)}
               onDblTap={() => tool === 'edit' && onDeletePoint(i)}
-              onClick={() => handlePointClick(p.point_ref)}
-              onTap={() => handlePointClick(p.point_ref)}
+              onClick={() => handlePointClick(p.point_ref, p.x, p.y)}
+              onTap={() => handlePointClick(p.point_ref, p.x, p.y)}
             />
           ))}
         </Layer>
@@ -203,6 +390,12 @@ export function PatternCanvas({
         {tool === 'add-line' &&
           (lineStartRef ? 'Click a second point to connect it.' : 'Click a point to start an internal line.')}
         {tool === 'delete-line' && 'Click an internal line to delete it.'}
+        {tool === 'seam' && 'Click a perimeter edge to set its seam allowance.'}
+        {tool === 'dart' &&
+          `Click leg, apex, leg in order to add a dart (${pendingClicks.length}/3 picked).`}
+        {tool === 'notch' && 'Click a perimeter point to add or remove a notch.'}
+        {tool === 'grain-line' &&
+          `Click two points to set the grain line (${pendingClicks.length}/2 picked).`}
       </div>
     </div>
   )

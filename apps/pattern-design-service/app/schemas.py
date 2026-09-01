@@ -27,19 +27,75 @@ class InternalLine(BaseModel):
     line_type: str = "internal"
 
 
+class SeamAllowance(BaseModel):
+    """Seam allowance on one perimeter edge (Both/union depth per Sec 4 -- Gerber's allowance
+    model + Richpeace's corner-type library). `edge_ref` is the two adjacent perimeter points the
+    edge runs between. Corner-mitering across adjacent seamed edges (Sec 4's large cut-corner
+    catalogue -- miter, tab, nub, frame, length-fix variants, etc.) is genuinely complex polygon
+    offset geometry deferred to a real Shapely-backed implementation; this slice stores the value
+    and renders a simple per-edge parallel offset, not a corner-accurate cut line."""
+
+    edge_ref: list[str]
+    allowance_mm: float
+    corner_type: str = "regular"
+
+
+class FreePoint(BaseModel):
+    """A point that isn't part of the perimeter -- a dart leg/apex or a grain line endpoint. Still
+    carries a stable `point_ref` per Sec 3.3's point-identity principle (grading will eventually
+    need to reference these too), just not stored in the shared `perimeter` array, since adding it
+    there would splice it into the outline polygon."""
+
+    point_ref: str
+    x: float
+    y: float
+
+
+class Dart(BaseModel):
+    """Gerber depth per Sec 4 (Darts, Pleats & Fullness -- documented to 43 items vs Richpeace's
+    24). This slice implements only "Add plain dart": two leg points on the perimeter edge and an
+    apex, with an intake amount. Rotate/combine/distribute/fullness variants are deferred."""
+
+    dart_ref: str
+    leg_a: FreePoint
+    apex: FreePoint
+    leg_b: FreePoint
+    intake_mm: float
+
+
+class Notch(BaseModel):
+    """Richpeace depth per Sec 4 (Notches & Internal Markings). This slice implements only
+    "Add notch (single, at edge location)" anchored to an existing perimeter point -- corner/
+    intersection notches, angled notches, and batch placement are deferred."""
+
+    point_ref: str
+    notch_type: str = "V"
+    depth_mm: float = 5.0
+
+
+class GrainLine(BaseModel):
+    """Richpeace depth per Sec 4 (Grain Line / Fabric Direction -- the one category with no
+    Gerber equivalent at all). One grain line per piece; `angle_deg` is derived from start/end at
+    creation time, matching Richpeace's two-point-click definition."""
+
+    start: FreePoint
+    end: FreePoint
+    angle_deg: float
+
+
 class PieceGeometryDocument(BaseModel):
     """One structured JSON document per piece per version (pattern_design_plan.md Sec 3.3).
-    seams/darts/notches/grain_line/annotations are carried in the schema now so later phases
-    don't need a schema_version bump to add them, but no tool writes them yet -- that's Phase 2.3."""
+    annotations is still carried as a placeholder for Phase 2.5 (Text/Annotation) -- nothing
+    writes it yet."""
 
     schema_version: int = GEOMETRY_SCHEMA_VERSION
     units: str = "mm"
     perimeter: list[Point] = []
     internal_lines: list[InternalLine] = []
-    seams: list[Any] = []
-    darts: list[Any] = []
-    notches: list[Any] = []
-    grain_line: Any | None = None
+    seams: list[SeamAllowance] = []
+    darts: list[Dart] = []
+    notches: list[Notch] = []
+    grain_line: GrainLine | None = None
     annotations: list[Any] = []
 
 
