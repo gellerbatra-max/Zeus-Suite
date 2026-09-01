@@ -6,8 +6,11 @@ schema/migrations, object storage (SAS URLs against Azurite), permission resolut
 provisioning, the Section 4.1–4.7 REST API (folders, pieces, styles, markers, orders/bundles,
 workflow metadata, audit log) — the literal Phase 1 exit criteria: a stub client can
 create/lock/version/transition a piece and read its full history back, entirely over HTTP —
-Section 4.8's search/cross-reference ("Find" utility equivalent), and now Section 2.12/3.5-3.8/4.12's
-generic async job queue (the plumbing Marker Making's real ~30-minute nesting solve will plug into).
+Section 4.8's search/cross-reference ("Find" utility equivalent), Section 2.12/3.5-3.8/4.12's
+generic async job queue, and Section 4.10's reports API (added to unblock Milestone 7's reporting
+UI, which needed something to call). CORS is enabled for `localhost:5173` so
+[`../data-management-app`](../data-management-app) (Milestone 7's React frontend) can call this
+API directly in local dev.
 
 Run it locally with `uvicorn app.main:app --reload` (from this directory, venv active) once the
 steps below are done; interactive docs at `http://localhost:8000/docs`. Auth is a **local-dev
@@ -111,6 +114,13 @@ own) — fixed in the same pass across every entity router, not scoped to search
   concurrent worker threads with no double-processing (proving the SKIP LOCKED claim is
   concurrency-safe), a complete `job_events` trail per job, plus cancellation, a deliberately
   induced timeout, and worker-permission enforcement.
+- `app/report_service.py` + `app/api/reports.py` — Section 4.10's reports API, never built in
+  Milestones 4-6. Every report here runs synchronously (`result_inline`) since none of the seeded
+  codes are expensive enough to need the async job path; `single_piece`, `all_piece`, and
+  `all_marker` are implemented, while the geometry-dependent codes (`piece_perimeter`,
+  `all_layrule`, `all_plot`, `all_cut`, `splice`) return `501` on purpose — they need piece/marker
+  geometry this platform stores as an opaque blob (Pattern Design's/Marker Making's domain, not
+  this platform's). `tests/test_reports.py` covers both paths plus permission enforcement.
 
 ## Useful commands
 

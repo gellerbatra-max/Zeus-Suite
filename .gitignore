@@ -13,6 +13,10 @@ venv/
 .env
 .env.*
 !.env.example
+# Vite convention: .env.<mode> files (no secrets, just per-environment defaults) are committed;
+# only *.local variants (covered by the frontend's own .gitignore) hold anything sensitive.
+!apps/*/.env.development
+!apps/*/.env.production
 
 # Node (future frontends)
 node_modules/

@@ -396,6 +396,31 @@ class JobCompleteRequest(BaseModel):
     error_detail: str | None = None
 
 
+# -- Reports (4.10) -----------------------------------------------------------------------------
+
+
+class ReportDefinitionOut(BaseModel):
+    code: str
+    name: str
+    entity_type: str
+    description: str | None
+
+
+class ReportRunRequest(BaseModel):
+    report_code: str
+    entity_id: uuid.UUID | None = None
+    format: str = "json"
+
+
+class ReportRunOut(BaseModel):
+    id: uuid.UUID
+    report_code: str
+    status: str
+    result_inline: dict[str, Any] | None
+    requested_at: datetime
+    completed_at: datetime | None
+
+
 # -- Audit log (4.9) ----------------------------------------------------------------------------
 
 
