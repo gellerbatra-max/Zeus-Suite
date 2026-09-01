@@ -357,6 +357,45 @@ class CrossReferenceOut(BaseModel):
     related: dict[str, list[SearchResultRow]]
 
 
+# -- Long-running jobs (2.12, 4.12) --------------------------------------------------------------
+
+
+class JobSubmitRequest(BaseModel):
+    job_type: str
+    input_ref: dict[str, Any]
+    callback_url: str | None = None
+
+
+class JobOut(BaseModel):
+    id: uuid.UUID
+    job_type: str
+    status: str
+    progress_pct: float | None
+    result_ref: dict[str, Any] | None
+    error_detail: str | None
+    submitted_at: datetime
+    started_at: datetime | None
+    completed_at: datetime | None
+    timeout_at: datetime | None
+
+
+class JobEventOut(BaseModel):
+    id: int
+    occurred_at: datetime
+    event_type: str
+    detail: dict[str, Any] | None
+
+
+class HeartbeatRequest(BaseModel):
+    progress_pct: float | None = None
+
+
+class JobCompleteRequest(BaseModel):
+    status: str
+    result_ref: dict[str, Any] | None = None
+    error_detail: str | None = None
+
+
 # -- Audit log (4.9) ----------------------------------------------------------------------------
 
 

@@ -1,12 +1,13 @@
 # data-platform-api
 
 Foundation service of the Zeus Suite (see [`docs/planning/00_master/master_plan.md`](../../docs/planning/00_master/master_plan.md)).
-This covers Milestones 1–5 of [`data_management_platform_plan.md`](../../docs/planning/01_data_management_platform/data_management_platform_plan.md#8-phased-build-plan-for-this-application):
+This covers Milestones 1–6 of [`data_management_platform_plan.md`](../../docs/planning/01_data_management_platform/data_management_platform_plan.md#8-phased-build-plan-for-this-application):
 schema/migrations, object storage (SAS URLs against Azurite), permission resolution + JIT user
 provisioning, the Section 4.1–4.7 REST API (folders, pieces, styles, markers, orders/bundles,
 workflow metadata, audit log) — the literal Phase 1 exit criteria: a stub client can
-create/lock/version/transition a piece and read its full history back, entirely over HTTP — and
-now Section 4.8's search/cross-reference ("Find" utility equivalent).
+create/lock/version/transition a piece and read its full history back, entirely over HTTP —
+Section 4.8's search/cross-reference ("Find" utility equivalent), and now Section 2.12/3.5-3.8/4.12's
+generic async job queue (the plumbing Marker Making's real ~30-minute nesting solve will plug into).
 
 Run it locally with `uvicorn app.main:app --reload` (from this directory, venv active) once the
 steps below are done; interactive docs at `http://localhost:8000/docs`. Auth is a **local-dev
@@ -33,7 +34,7 @@ cp ../../.env.example ../../.env
 # 4. Apply the schema + seed data (no manual SQL — this is the whole database)
 alembic upgrade head
 
-# 5. Run the test suite (Milestone 1-5 exit checks)
+# 5. Run the test suite (Milestone 1-6 exit checks)
 pytest
 ```
 
@@ -87,6 +88,29 @@ pytest
 **Note:** building Milestone 5 surfaced a real cross-tenant data leak in Milestones 1-4's by-ID
 lookups (`GET /pieces/{id}` etc. never checked the entity's `organization_id` against the caller's
 own) — fixed in the same pass across every entity router, not scoped to search alone.
+
+- `alembic/versions/0005_add_job_heartbeat_column.py` — adds `jobs.last_heartbeat_at`, the clock
+  Section 3.7's timeout sweep is supposed to watch but Section 2.12's DDL never gives it a column
+  for — the third instance of this pattern (see migrations 0003 and 0004).
+- `app/job_service.py` — the generic async job pattern (Section 2.12/3.5-3.8/4.12): submit,
+  heartbeat, complete, cancel, and the timeout sweep, all as plain functions shared by the HTTP
+  routes and the worker so both paths produce identical audit/`job_events` trails.
+  `dequeue_and_claim_job` is the local stand-in for real Azure Service Bus (not available without
+  an Azure subscription) — an atomic `SELECT ... FOR UPDATE SKIP LOCKED` claim instead of a real
+  queue delivery, clearly boundaried so swapping in Service Bus later only touches this function.
+- `app/job_worker.py` — the local worker: dequeues via the substitute above, then reports
+  progress/completion through the *real* HTTP endpoints using a service-account identity holding
+  only `job.worker`, so the same permission checks and audit trail apply as a real out-of-process
+  Celery worker would produce. `JOB_HANDLERS` in `job_service.py` holds the
+  `marker_nesting_solve` stub (sleep-and-echo, per Milestone 6's own instruction not to build the
+  real ~30-minute algorithm here) — Marker Making's build swaps in the real one later.
+- `app/api/jobs.py` — Section 4.12's REST surface: `POST /jobs`, `GET /jobs`, `GET /jobs/{id}`,
+  `GET /jobs/{id}/events`, `POST /jobs/{id}/cancel`, and the worker-only
+  `POST /jobs/{id}/heartbeat` / `.../complete` (gated on `job.worker`, never granted to a human role).
+- `tests/test_jobs.py` — the literal Milestone 6 exit check: 20 jobs submitted, drained by 4
+  concurrent worker threads with no double-processing (proving the SKIP LOCKED claim is
+  concurrency-safe), a complete `job_events` trail per job, plus cancellation, a deliberately
+  induced timeout, and worker-permission enforcement.
 
 ## Useful commands
 

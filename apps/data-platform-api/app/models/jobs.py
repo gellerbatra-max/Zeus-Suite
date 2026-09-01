@@ -43,6 +43,7 @@ class Job(Base):
     started_at = Column(TIMESTAMP(timezone=True))
     completed_at = Column(TIMESTAMP(timezone=True))
     timeout_at = Column(TIMESTAMP(timezone=True))
+    last_heartbeat_at = Column(TIMESTAMP(timezone=True))
 
 
 class JobEvent(Base):
