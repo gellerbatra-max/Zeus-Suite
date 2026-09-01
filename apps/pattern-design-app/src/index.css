@@ -1,0 +1,270 @@
+:root {
+  --border: #d8d8dc;
+  --bg: #fafafa;
+  --bg-panel: #ffffff;
+  --text: #1a1a1e;
+  --text-muted: #6b6b73;
+  --accent: #2e5aac;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  border-radius: 4px;
+  padding: 6px 12px;
+  color: var(--text);
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  color: var(--text);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.app__header h1 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.app__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 0 10px;
+  flex-wrap: wrap;
+}
+
+.app__main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 240px 1fr;
+  gap: 20px;
+  padding: 20px;
+  align-items: start;
+}
+
+.app__canvas-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Identity bar */
+
+.identity-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+
+.identity-bar__badge {
+  background: #fff3cd;
+  color: #7a5c00;
+  border: 1px solid #e8d27a;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.identity-bar label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  gap: 2px;
+}
+
+/* Piece list */
+
+.piece-list {
+  border-right: 1px solid var(--border);
+  padding-right: 16px;
+}
+
+.piece-list h3 {
+  margin-top: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.piece-list__items {
+  list-style: none;
+  margin: 0 0 16px;
+  padding: 0;
+}
+
+.piece-list__item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  width: 100%;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  font-size: 0.85rem;
+  text-align: left;
+}
+
+.piece-list__item span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+.piece-list__item--selected {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+
+.piece-list__new {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Tool group */
+
+.tool-group {
+  display: flex;
+  gap: 2px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.tool-button {
+  border: none;
+  border-radius: 0;
+  font-size: 0.8rem;
+}
+
+.tool-button--active {
+  background: var(--accent);
+  color: #ffffff;
+  border-color: var(--accent);
+}
+
+/* Shape tools */
+
+.shape-tools {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 8px 0;
+  font-size: 0.85rem;
+}
+
+.shape-tools__label {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.shape-tools__group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.shape-tools__group input {
+  width: 64px;
+}
+
+/* Pattern canvas */
+
+.pattern-canvas {
+  border: 1px solid var(--border);
+  background: #ffffff;
+  display: inline-block;
+}
+
+.pattern-canvas__hint {
+  padding: 6px 10px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  border-top: 1px solid var(--border);
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.badge {
+  display: inline-block;
+  background: #eef1f6;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.badge--made,
+.badge--approved {
+  background: #e5f4e8;
+  color: #1e7e34;
+}
+
+.badge--needs_approval {
+  background: #fff3cd;
+  color: #7a5c00;
+}
+
+.badge--cancelled {
+  background: #fbe9e8;
+  color: #b3261e;
+}
+
+.error-text {
+  color: #b3261e;
+  padding: 0 20px;
+}

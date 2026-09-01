@@ -3,11 +3,11 @@
   "configurations": [
     {
       "name": "data-platform-api",
-      "runtimeExecutable": "/Users/raveen/Documents/GitHub/Zeus Suite/apps/data-platform-api/.venv/bin/uvicorn",
+      "runtimeExecutable": "/Users/raveen/Documents/GitHub/zeus-suite-pattern-design/apps/data-platform-api/.venv/bin/uvicorn",
       "runtimeArgs": [
         "app.main:app",
         "--app-dir",
-        "/Users/raveen/Documents/GitHub/Zeus Suite/apps/data-platform-api",
+        "/Users/raveen/Documents/GitHub/zeus-suite-pattern-design/apps/data-platform-api",
         "--host",
         "0.0.0.0",
         "--port",
@@ -20,9 +20,27 @@
       "runtimeExecutable": "bash",
       "runtimeArgs": [
         "-c",
-        "cd \"/Users/raveen/Documents/GitHub/Zeus Suite/apps/data-management-app\" && npm run dev -- --port 5173"
+        "cd \"/Users/raveen/Documents/GitHub/zeus-suite-pattern-design/apps/data-management-app\" && npm run dev -- --port 5173"
       ],
       "port": 5173
+    },
+    {
+      "name": "pattern-design-service",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd \"/Users/raveen/Documents/GitHub/zeus-suite-pattern-design/apps/pattern-design-service\" && .venv/bin/uvicorn app.main:app --port 8002"
+      ],
+      "port": 8002
+    },
+    {
+      "name": "pattern-design-app",
+      "runtimeExecutable": "bash",
+      "runtimeArgs": [
+        "-c",
+        "cd \"/Users/raveen/Documents/GitHub/zeus-suite-pattern-design/apps/pattern-design-app\" && npm run dev -- --port 5175"
+      ],
+      "port": 5175
     }
   ]
 }
