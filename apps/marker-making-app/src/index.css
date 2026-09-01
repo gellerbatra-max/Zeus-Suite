@@ -1,0 +1,227 @@
+:root {
+  --border: #d8d8dc;
+  --bg: #fafafa;
+  --bg-panel: #ffffff;
+  --text: #1a1a1e;
+  --text-muted: #6b6b73;
+  --accent: #2e5aac;
+  color-scheme: light;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+button {
+  font: inherit;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--bg-panel);
+  border-radius: 4px;
+  padding: 6px 12px;
+  color: var(--text);
+}
+
+button:hover {
+  border-color: var(--accent);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+input {
+  font: inherit;
+  padding: 5px 8px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  color: var(--text);
+}
+
+.app {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.app__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
+.app__header h1 {
+  font-size: 1.1rem;
+  margin: 0;
+}
+
+.app__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+}
+
+.app__main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 220px 1fr 280px;
+  gap: 20px;
+  padding: 20px;
+  align-items: start;
+}
+
+.app__canvas-column {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+/* Identity bar */
+
+.identity-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 0.85rem;
+}
+
+.identity-bar__badge {
+  background: #fff3cd;
+  color: #7a5c00;
+  border: 1px solid #e8d27a;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+.identity-bar label {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  gap: 2px;
+}
+
+/* Piece tray */
+
+.piece-tray {
+  border-right: 1px solid var(--border);
+  padding-right: 16px;
+}
+
+.piece-tray h3 {
+  margin-top: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.piece-tray__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 10px;
+  margin-bottom: 6px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--bg-panel);
+  cursor: grab;
+  font-size: 0.85rem;
+}
+
+.piece-tray__item span {
+  color: var(--text-muted);
+  font-size: 0.78rem;
+}
+
+/* Canvas */
+
+.marker-canvas {
+  border: 1px solid var(--border);
+  background: #ffffff;
+  display: inline-block;
+}
+
+.piece-toolbar {
+  display: flex;
+  gap: 8px;
+}
+
+/* Nesting job panel */
+
+.nesting-job-panel {
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+}
+
+.nesting-job-panel h3 {
+  margin-top: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.nesting-job-panel__status pre {
+  background: #f0f1f4;
+  padding: 8px;
+  border-radius: 4px;
+  overflow: auto;
+  max-height: 200px;
+  font-size: 0.78rem;
+}
+
+.hint {
+  color: var(--text-muted);
+  font-size: 0.8rem;
+}
+
+.badge {
+  display: inline-block;
+  background: #eef1f6;
+  border-radius: 3px;
+  padding: 2px 8px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.badge--made,
+.badge--succeeded {
+  background: #e5f4e8;
+  color: #1e7e34;
+}
+
+.badge--partial,
+.badge--running,
+.badge--queued {
+  background: #fff3cd;
+  color: #7a5c00;
+}
+
+.badge--failed,
+.badge--cancelled {
+  background: #fbe9e8;
+  color: #b3261e;
+}
+
+.error-text {
+  color: #b3261e;
+}

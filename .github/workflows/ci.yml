@@ -86,3 +86,84 @@ jobs:
 
       - name: Build (type-checks, then bundles)
         run: npm run build
+
+  marker-making-backend:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: zeus
+          POSTGRES_PASSWORD: zeus
+          POSTGRES_DB: zeus_suite
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U zeus -d zeus_suite"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+      azurite:
+        image: mcr.microsoft.com/azure-storage/azurite
+        ports:
+          - 10000:10000
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # marker-making-service has no database of its own -- its tests spawn a real
+      # data-platform-api subprocess (see tests/conftest.py), using that service's own venv at
+      # the fixed relative path its conftest expects.
+      - name: Set up data-platform-api's own venv
+        working-directory: apps/data-platform-api
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -e ".[dev]"
+
+      - name: Install marker-making-service dependencies
+        working-directory: apps/marker-making-service
+        run: pip install -e ".[dev]"
+
+      - name: Wait for Azurite
+        run: |
+          for i in $(seq 1 30); do
+            (exec 3<>/dev/tcp/127.0.0.1/10000) 2>/dev/null && exit 0
+            sleep 1
+          done
+          echo "Azurite did not become ready in time" >&2
+          exit 1
+
+      - name: Run tests
+        working-directory: apps/marker-making-service
+        run: pytest
+
+  marker-making-frontend:
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: apps/marker-making-app
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: apps/marker-making-app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Build (type-checks, then bundles)
+        run: npm run build
