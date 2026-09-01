@@ -1,10 +1,19 @@
 # data-platform-api
 
 Foundation service of the Zeus Suite (see [`docs/planning/00_master/master_plan.md`](../../docs/planning/00_master/master_plan.md)).
-This covers Milestones 1–3 of [`data_management_platform_plan.md`](../../docs/planning/01_data_management_platform/data_management_platform_plan.md#8-phased-build-plan-for-this-application):
-schema/migrations, object storage (SAS URLs against Azurite), and permission resolution + JIT user
-provisioning. No HTTP API routes yet — those land in Milestone 4, wiring Sections 4.1–4.7 on top of
-what's here.
+This covers Milestones 1–4 of [`data_management_platform_plan.md`](../../docs/planning/01_data_management_platform/data_management_platform_plan.md#8-phased-build-plan-for-this-application):
+schema/migrations, object storage (SAS URLs against Azurite), permission resolution + JIT user
+provisioning, and now the Section 4.1–4.7 REST API itself (folders, pieces, styles, markers,
+orders/bundles, workflow metadata, audit log) — the literal Phase 1 exit criteria: a stub client
+can create/lock/version/transition a piece and read its full history back, entirely over HTTP.
+
+Run it locally with `uvicorn app.main:app --reload` (from this directory, venv active) once the
+steps below are done; interactive docs at `http://localhost:8000/docs`. Auth is a **local-dev
+stub** — send `X-Dev-User: <username>` (and optionally `X-Dev-Org`, default `DEV`) on every
+request instead of a real bearer token; see `app/auth.py` and `app/deps.py` for the real-Entra-ID
+swap-over path once tenant access exists. A brand-new dev user gets the `viewer` role only — granting
+anything more (e.g. `admin`) needs a direct DB write today, since Section 4.11's RBAC-admin
+endpoints aren't built yet (see `tests/test_api_milestone4.py` for the pattern).
 
 ## Local setup
 
@@ -23,7 +32,7 @@ cp ../../.env.example ../../.env
 # 4. Apply the schema + seed data (no manual SQL — this is the whole database)
 alembic upgrade head
 
-# 5. Run the test suite (Milestone 1-3 exit checks)
+# 5. Run the test suite (Milestone 1-4 exit checks)
 pytest
 ```
 
@@ -50,6 +59,16 @@ pytest
 - `tests/test_storage_smoke.py` — SAS-URL upload/download round-trip against Azurite.
 - `tests/test_auth.py` — JIT provisioning (create + update) and permission resolution (org-wide,
   folder-scoped, ancestor inheritance, immediate revocation).
+- `alembic/versions/0003_add_optimistic_concurrency_version.py` — adds the `version` integer
+  column Section 4.0's `If-Match-Version` contract needs but Section 2's DDL never defines (a gap
+  between the API-conventions and schema sections of the same spec doc, flagged in the migration's
+  docstring).
+- `app/api/` — the Section 4 routers (folders, pieces, styles, markers, orders/bundles, workflow
+  metadata, audit log), `app/deps.py` (the shared permission-check-then-audit-write path every
+  handler calls into), `app/workflow_engine.py` (status-transition validation), `app/auditing.py`
+  (the one place that writes `audit_log` rows), and `app/serializers.py` (ORM row → response schema).
+- `tests/test_api_milestone4.py` — the literal Milestone 4 exit check end-to-end over HTTP, plus
+  permission-denial and optimistic-concurrency-conflict coverage.
 
 ## Useful commands
 

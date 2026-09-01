@@ -22,6 +22,7 @@ dependencies = [
 dev = [
     "pytest>=8.0",
     "ruff>=0.6",
+    "httpx>=0.27",
 ]
 
 [tool.setuptools.packages.find]
@@ -29,3 +30,9 @@ include = ["app*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff.lint]
+# B008: flake8-bugbear flags function calls in argument defaults, but FastAPI's own docs
+# prescribe exactly `= Depends(...)` / `= Query(...)` as the idiomatic pattern -- ignored here
+# rather than rewritten away from a pattern the framework itself recommends.
+ignore = ["B008"]

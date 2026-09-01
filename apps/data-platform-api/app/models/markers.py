@@ -37,6 +37,7 @@ class Marker(Base):
     updated_by = Column(UUID(as_uuid=True), ForeignKey("dmp.users.id"), nullable=False)
     updated_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))
     deleted_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    version = Column(Integer, nullable=False, server_default=text("1"))
 
 
 class MarkerVersion(Base):
