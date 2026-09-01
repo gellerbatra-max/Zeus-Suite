@@ -36,7 +36,7 @@
    See that folder's own README for status (a live Figma design file exists but is currently
    blocked by a Starter-plan rate limit; this screen was rendered statically as a substitute).
 
-7. **`05_reference_function_catalogues/`** — the raw source material every per-app plan was built
+7. **`07_reference_function_catalogues/`** — the raw source material every per-app plan was built
    from: the full Gerber AccuMark function definitions (Pattern Design, Marker Making, Order
    Entry, IGES, Style Converter) and the full Richpeace DGS/GMS function definitions, plus the
    Richpeace-vs-Gerber comparison findings that justified several design decisions (e.g. the
@@ -68,4 +68,4 @@
 | `04_format_interchange/` | Plan, 3 workflow flowcharts |
 | `05_3d_digital_twin/` | Plan, 3 workflow flowcharts (mesh construction/drape, fit review, material/export) |
 | `06_ui_mockups/` | High-fidelity Marker Making workspace mockup (static render; live Figma file in progress) |
-| `05_reference_function_catalogues/` | Full Gerber + Richpeace function catalogues, comparison report |
+| `07_reference_function_catalogues/` | Full Gerber + Richpeace function catalogues, comparison report |

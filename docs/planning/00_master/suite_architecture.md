@@ -5,7 +5,7 @@ Design, Marker Making, and Order Entry, plus 21 IGES command-line switches and 2
 workflow/error/warning items catalogued separately), the Richpeace DGS/GMS comparison (749
 functions), and the enterprise data-management architecture already specified.*
 
-## The four applications
+## The five applications
 
 ### 1. Data Management Platform (foundation — build first)
 The shared substrate every other application reads and writes through: object storage for
@@ -52,8 +52,24 @@ client, centralized server" pattern already established. None of them talk to ea
 directly; a piece created in Pattern Design becomes visible to Marker Making only via the shared
 platform, mirroring how Storage Areas made Gerber's separate applications interoperate.
 
+### 5. 3D Virtual Sampling / Digital Twin
+**Added after re-examining scope against the broader market, not just Gerber/Richpeace.** The
+earlier market-research pass classified 3D virtual sampling (physics-based garment draping,
+avatar/fit visualization) as **CORE/table-stakes** — standard across Browzwear, CLO3D, Optitex,
+Assyst/Style3D, Tukatech, and Lectra Modaris — not a differentiator. Gerber's own AccuMark 3D
+module exists but is thin/adjacent rather than 3D-native (per the same research, AccuMark itself
+"remains fundamentally a 2D pattern/grading/marker engine," with Lectra's real 3D strength living
+in the separate Modaris product). Since matching Gerber/Richpeace feature-for-feature is not the
+same bar as staying competitive with the broader market, this suite includes a real 3D
+application rather than treating it as an out-of-scope R&D bet.
+
+This app takes finished pattern pieces from Pattern Design & Grading (piece outlines, seam/sew-line
+data, fabric properties) and constructs a simulatable 3D garment mesh, drapes it on an avatar/body
+model, and supports fit review and material/texture visualization — closing the CORE-tier gap the
+market research itself flagged. Full spec: `digital_twin_3d_plan.md`.
+
 ## Explicitly out of scope for this document set
-The differentiator modules from the earlier "advanced product range" research pass (AI-native
-pattern generation, a unified 3D digital twin, predictive sustainability analytics) are not
-included in this build plan — they were flagged as R&D-track bets in that outline, not near-term
-shipping commitments, and are not needed to reach feature-parity with Gerber/Richpeace.
+Two items from the earlier "advanced product range" research pass remain excluded — AI-native
+pattern generation and predictive sustainability analytics — both flagged in that outline as
+research-stage bets across the whole industry (not just this suite), not near-term shipping
+commitments.

@@ -91,7 +91,7 @@ Design, Marker Making, and Order Entry, plus 21 IGES command-line switches and 2
 workflow/error/warning items catalogued separately), the Richpeace DGS/GMS comparison (749
 functions), and the enterprise data-management architecture already specified.*
 
-## The four applications
+## The five applications
 
 ### 1. Data Management Platform (foundation — build first)
 The shared substrate every other application reads and writes through: object storage for
@@ -164,7 +164,7 @@ commitments.
 
 ## Part 2 — Phase-Wise Development Roadmap (build order)
 
-*How to sequence building the four applications defined in `suite_architecture.md`. Read alongside
+*How to sequence building the five applications defined in `suite_architecture.md`. Read alongside
 the build-order flowchart below — this document explains the reasoning; the flowchart is the
 reference diagram to keep visible while planning sprints.*
 
@@ -303,7 +303,7 @@ update arrived) has been patched separately for the Azure service substitutions.
 
 Every per-application plan in this delivery states which rows of this table apply to which of its
 own modules — the same choices are used suite-wide so there is one backend language, one frontend
-language, and one database technology across all four applications, with the async-job pattern
+language, and one database technology across all five applications, with the async-job pattern
 (queue + worker) shared identically wherever a long-running computation exists.
 
 

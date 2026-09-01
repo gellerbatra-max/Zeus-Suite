@@ -1395,7 +1395,7 @@ Section 5 specifies (SSO identity, then in-app RBAC).
 
 ```mermaid
 flowchart TD
-    start([Any client sends API request + Bearer JWT]) --> validate_jwt{"Middleware: verify JWT<br/>signature (JWKS), exp, iss, aud"}
+    start([Any client (Pattern Design / Marker Making / Format Interchange / Data Management App) sends API request + Bearer JWT]) --> validate_jwt{"Middleware: verify JWT<br/>signature (JWKS), exp, iss, aud"}
     validate_jwt -->|invalid| audit_bad_token["Insert audit_log row<br/>(user_id=null, action=auth.invalid_token, result=denied)"]
     audit_bad_token --> return401["401 Unauthorized"]
     validate_jwt -->|valid| resolve_user["Resolve dmp.users row from<br/>sso_subject / service_account client_id"]

@@ -64,7 +64,7 @@ Processing pipeline used to build §4's catalogue:
    line, grading, measurement, piece transformation, text/annotation, digitizing input,
    import/export, plotting, customization/preferences, automation) via an LLM classification pass,
    with a second pass to force-resolve ambiguous items and a manual pass for the residual handful
-   of items that pass could not place. 16 Gerber items (pure overview/hints text with no distinct
+   of items that pass could not place. 19 Gerber items (pure overview/hints text with no distinct
    invokable function — e.g. "About Pieces," "Practical Application Examples") were excluded as
    non-functional. This yields 512 real Gerber functions and 437 real Richpeace functions
    classified into the taxonomy — a total of 949 raw named functions.

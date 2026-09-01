@@ -3075,6 +3075,8 @@ This is a cut-off phrase, but based on context it means Storage Areas are user-d
 
 **Cannot find rule –1** — The piece has a placeholder/invalid grading rule number assigned to a point. Go into the old MicroMark pattern and assign a real, valid rule number to that point.
 
+**Sizes has variations and can not be converted** — A Grade Checker error (flagged before the Viewer comparison step, not one of the Viewer's mismatch types above): the old style used "Variation Sizes" (a MicroMark-specific sizing feature) that Style Converter cannot handle directly; this needs to be resolved through the synonym/size-code setup described in "MicroMark sizes missing" above before it can convert successfully.
+
 ### Problems the software finds and flags as warnings (informational — often no action needed, but worth checking)
 
 **Piece was flipped, grain line realigned to maintain flip state** — The piece was saved facing the opposite way it was originally drawn; the software automatically adjusted the grain line marking to keep the resizing correct despite the flip.
@@ -3097,6 +3099,4 @@ This is a cut-off phrase, but based on context it means Storage Areas are user-d
 
 **Changes in Notches** — A notch (small cutting guide mark) moved position, disappeared, or an extra one appeared compared to the original piece.
 
-**Overall Perimeter Changes** — The piece's entire outline shifted position (not shape) because its reference origin point changed during conversion.
 
-**Sizes has variations and can not be converted** — The old style used "Variation Sizes" (a MicroMark-specific sizing feature) that Style Converter cannot handle directly; this needs to be resolved through the synonym/size-code setup described in "MicroMark sizes missing" above before it can convert successfully.
