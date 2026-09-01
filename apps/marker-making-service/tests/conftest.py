@@ -15,6 +15,7 @@ from pathlib import Path
 
 import httpx
 import pytest
+from azure.storage.blob import BlobServiceClient
 
 from app import platform_client
 
@@ -23,6 +24,26 @@ PLATFORM_DIR = REPO_ROOT / "data-platform-api"
 PLATFORM_PYTHON = PLATFORM_DIR / ".venv" / "bin" / "python3"
 PLATFORM_PORT = 8099
 PLATFORM_BASE_URL = f"http://127.0.0.1:{PLATFORM_PORT}"
+
+# Section 3.1's container list on data-platform-api. A real deployment provisions these via
+# Bicep ahead of any request (see that service's own tests/conftest.py, which does the same
+# thing for its own test session); this subprocess-based setup spins up a separate, possibly
+# genuinely fresh Azurite instance that never goes through that fixture, so it has to provision
+# them itself the same way.
+_AZURITE_CONNECTION_STRING = (
+    "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;"
+    "AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;"
+    "BlobEndpoint=http://127.0.0.1:10000/devstoreaccount1;"
+)
+_STORAGE_CONTAINERS = ["dmp-pieces", "dmp-markers", "dmp-nesting-jobs", "dmp-reports", "dmp-audit-archive"]
+
+
+def _ensure_storage_containers() -> None:
+    service_client = BlobServiceClient.from_connection_string(_AZURITE_CONNECTION_STRING)
+    for container in _STORAGE_CONTAINERS:
+        container_client = service_client.get_container_client(container)
+        if not container_client.exists():
+            container_client.create_container()
 
 
 def _wait_for_healthz(timeout: float = 30.0) -> None:
@@ -48,6 +69,7 @@ def platform_server():
         [str(PLATFORM_PYTHON), "-m", "alembic", "upgrade", "head"],
         cwd=PLATFORM_DIR, check=True, capture_output=True, text=True,
     )
+    _ensure_storage_containers()
 
     proc = subprocess.Popen(
         [str(PLATFORM_PYTHON), "-m", "uvicorn", "app.main:app", "--port", str(PLATFORM_PORT)],
