@@ -23,17 +23,17 @@ from app.serializers import folder_out
 router = APIRouter(prefix="/folders", tags=["folders"])
 
 
-def _get_folder_or_404(db: Session, folder_id: uuid.UUID) -> Folder:
+def _get_folder_or_404(db: Session, folder_id: uuid.UUID, org_id: uuid.UUID) -> Folder:
     folder = db.get(Folder, folder_id)
-    if folder is None or folder.deleted_at is not None:
+    if folder is None or folder.deleted_at is not None or folder.organization_id != org_id:
         raise not_found("Folder")
     return folder
 
 
-def _compute_path(db: Session, parent_id: uuid.UUID | None, name: str) -> str:
+def _compute_path(db: Session, org_id: uuid.UUID, parent_id: uuid.UUID | None, name: str) -> str:
     if parent_id is None:
         return f"/{name}"
-    parent = _get_folder_or_404(db, parent_id)
+    parent = _get_folder_or_404(db, parent_id, org_id)
     return f"{parent.path.rstrip('/')}/{name}"
 
 
@@ -71,7 +71,7 @@ def create_folder(
         db, actor, "folder.write", request_id=request_id, entity_type="folder", action="folder.create",
         folder_id=body.parent_id,
     )
-    path = _compute_path(db, body.parent_id, body.name)
+    path = _compute_path(db, actor.organization_id, body.parent_id, body.name)
     folder = Folder(
         organization_id=actor.organization_id,
         parent_id=body.parent_id,
@@ -98,7 +98,7 @@ def get_folder(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    folder = _get_folder_or_404(db, folder_id)
+    folder = _get_folder_or_404(db, folder_id, actor.organization_id)
     require_permission(
         db, actor, "folder.read", request_id=request_id, entity_type="folder", action="folder.read",
         folder_id=folder.id, entity_id=folder.id,
@@ -115,7 +115,7 @@ def rename_folder(
     request_id: uuid.UUID = Depends(get_request_id),
     if_match_version: int | None = Header(None, alias="If-Match-Version"),
 ):
-    folder = _get_folder_or_404(db, folder_id)
+    folder = _get_folder_or_404(db, folder_id, actor.organization_id)
     require_permission(
         db, actor, "folder.write", request_id=request_id, entity_type="folder", action="folder.rename",
         folder_id=folder.id, entity_id=folder.id,
@@ -124,7 +124,7 @@ def rename_folder(
 
     before = {"name": folder.name, "path": folder.path}
     folder.name = body.name
-    folder.path = _compute_path(db, folder.parent_id, body.name)
+    folder.path = _compute_path(db, actor.organization_id, folder.parent_id, body.name)
     folder.updated_by = actor.user_id
     folder.version += 1
     db.flush()
@@ -144,7 +144,7 @@ def move_folder(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    folder = _get_folder_or_404(db, folder_id)
+    folder = _get_folder_or_404(db, folder_id, actor.organization_id)
     require_permission(
         db, actor, "folder.write", request_id=request_id, entity_type="folder", action="folder.move",
         folder_id=folder.id, entity_id=folder.id,
@@ -152,7 +152,7 @@ def move_folder(
     before_path = folder.path
     old_prefix = folder.path
     folder.parent_id = body.new_parent_id
-    folder.path = _compute_path(db, body.new_parent_id, folder.name)
+    folder.path = _compute_path(db, actor.organization_id, body.new_parent_id, folder.name)
     folder.updated_by = actor.user_id
     folder.version += 1
     db.flush()
@@ -177,7 +177,7 @@ def delete_folder(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    folder = _get_folder_or_404(db, folder_id)
+    folder = _get_folder_or_404(db, folder_id, actor.organization_id)
     require_permission(
         db, actor, "folder.delete", request_id=request_id, entity_type="folder", action="folder.delete",
         folder_id=folder.id, entity_id=folder.id,
@@ -207,7 +207,7 @@ def list_children(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    folder = _get_folder_or_404(db, folder_id)
+    folder = _get_folder_or_404(db, folder_id, actor.organization_id)
     require_permission(
         db, actor, "folder.read", request_id=request_id, entity_type="folder", action="folder.children",
         folder_id=folder.id,
@@ -225,7 +225,7 @@ def list_contents(
 ):
     """Immediate-child pieces + styles + markers + orders + bundles, one paginated mixed list,
     each item tagged `entity_type` -- the endpoint the folder browser calls (Section 6.1)."""
-    folder = _get_folder_or_404(db, folder_id)
+    folder = _get_folder_or_404(db, folder_id, actor.organization_id)
     require_permission(
         db, actor, "folder.read", request_id=request_id, entity_type="folder", action="folder.contents",
         folder_id=folder.id,

@@ -36,9 +36,9 @@ router = APIRouter(prefix="/markers", tags=["markers"])
 STORAGE_CONTAINER = "dmp-markers"
 
 
-def _get_marker_or_404(db: Session, marker_id: uuid.UUID) -> Marker:
+def _get_marker_or_404(db: Session, marker_id: uuid.UUID, org_id: uuid.UUID) -> Marker:
     marker = db.get(Marker, marker_id)
-    if marker is None or marker.deleted_at is not None:
+    if marker is None or marker.deleted_at is not None or marker.organization_id != org_id:
         raise not_found("Marker")
     return marker
 
@@ -108,7 +108,7 @@ def get_marker(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    marker = _get_marker_or_404(db, marker_id)
+    marker = _get_marker_or_404(db, marker_id, actor.organization_id)
     require_permission(
         db, actor, "marker.read", request_id=request_id, entity_type="marker", action="marker.read",
         folder_id=marker.folder_id, entity_id=marker.id,
@@ -125,7 +125,7 @@ def patch_marker(
     request_id: uuid.UUID = Depends(get_request_id),
     if_match_version: int | None = Header(None, alias="If-Match-Version"),
 ):
-    marker = _get_marker_or_404(db, marker_id)
+    marker = _get_marker_or_404(db, marker_id, actor.organization_id)
     require_permission(
         db, actor, "marker.write", request_id=request_id, entity_type="marker", action="marker.update",
         folder_id=marker.folder_id, entity_id=marker.id,
@@ -155,7 +155,7 @@ def delete_marker(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    marker = _get_marker_or_404(db, marker_id)
+    marker = _get_marker_or_404(db, marker_id, actor.organization_id)
     require_permission(
         db, actor, "marker.delete", request_id=request_id, entity_type="marker", action="marker.delete",
         folder_id=marker.folder_id, entity_id=marker.id,
@@ -179,7 +179,7 @@ def list_marker_versions(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    marker = _get_marker_or_404(db, marker_id)
+    marker = _get_marker_or_404(db, marker_id, actor.organization_id)
     require_permission(
         db, actor, "marker.read", request_id=request_id, entity_type="marker", action="marker.versions.list",
         folder_id=marker.folder_id,
@@ -200,7 +200,7 @@ def begin_marker_version(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    marker = _get_marker_or_404(db, marker_id)
+    marker = _get_marker_or_404(db, marker_id, actor.organization_id)
     require_permission(
         db, actor, "marker.write", request_id=request_id, entity_type="marker", action="marker.version.begin",
         folder_id=marker.folder_id, entity_id=marker.id,
@@ -237,7 +237,7 @@ def complete_marker_version(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    marker = _get_marker_or_404(db, marker_id)
+    marker = _get_marker_or_404(db, marker_id, actor.organization_id)
     require_permission(
         db, actor, "marker.write", request_id=request_id, entity_type="marker", action="marker.version.complete",
         folder_id=marker.folder_id, entity_id=marker.id,
@@ -267,7 +267,7 @@ def get_marker_download_url(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    marker = _get_marker_or_404(db, marker_id)
+    marker = _get_marker_or_404(db, marker_id, actor.organization_id)
     require_permission(
         db, actor, "marker.read", request_id=request_id, entity_type="marker", action="marker.version.download_url",
         folder_id=marker.folder_id,
@@ -288,7 +288,7 @@ def transition_marker_status(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    marker = _get_marker_or_404(db, marker_id)
+    marker = _get_marker_or_404(db, marker_id, actor.organization_id)
     plan = plan_transition(db, "marker", marker.workflow_status_id, body.to_status)
     require_permission(
         db, actor, plan.required_permission, request_id=request_id, entity_type="marker",
@@ -315,7 +315,7 @@ def list_marker_pieces(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    marker = _get_marker_or_404(db, marker_id)
+    marker = _get_marker_or_404(db, marker_id, actor.organization_id)
     require_permission(
         db, actor, "marker.read", request_id=request_id, entity_type="marker", action="marker.pieces.list",
         folder_id=marker.folder_id,
@@ -338,7 +338,7 @@ def replace_marker_pieces(
 ):
     """Bulk-replaces the marker's piece placement list in one call -- the normal path after a
     nesting run completes (Section 4.5)."""
-    marker = _get_marker_or_404(db, marker_id)
+    marker = _get_marker_or_404(db, marker_id, actor.organization_id)
     require_permission(
         db, actor, "marker.write", request_id=request_id, entity_type="marker", action="marker.pieces.replace",
         folder_id=marker.folder_id, entity_id=marker.id,
@@ -367,7 +367,7 @@ def get_marker_bundles(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    marker = _get_marker_or_404(db, marker_id)
+    marker = _get_marker_or_404(db, marker_id, actor.organization_id)
     require_permission(
         db, actor, "marker.read", request_id=request_id, entity_type="marker", action="marker.bundles",
         folder_id=marker.folder_id,

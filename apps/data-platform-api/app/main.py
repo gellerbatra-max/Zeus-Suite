@@ -1,6 +1,7 @@
-"""FastAPI application entrypoint: Milestone 4's Section 4 REST surface (folders, pieces, styles,
-markers, orders/bundles, workflow metadata, audit log) on top of Milestones 1-3's schema, object
-storage, and permission-resolution/JIT-provisioning building blocks."""
+"""FastAPI application entrypoint: Milestones 4-5's Section 4 REST surface (folders, pieces,
+styles, markers, orders/bundles, workflow metadata, audit log, search/cross-reference) on top of
+Milestones 1-3's schema, object storage, and permission-resolution/JIT-provisioning building
+blocks."""
 
 import uuid
 
@@ -9,7 +10,17 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import audit_log, folders, markers, meta, orders, pieces, styles, workflow
+from app.api import (
+    audit_log,
+    folders,
+    markers,
+    meta,
+    orders,
+    pieces,
+    search,
+    styles,
+    workflow,
+)
 
 app = FastAPI(title="data-platform-api", version="0.1.0")
 
@@ -50,3 +61,4 @@ app.include_router(markers.router)
 app.include_router(orders.router)
 app.include_router(workflow.router)
 app.include_router(audit_log.router)
+app.include_router(search.router)

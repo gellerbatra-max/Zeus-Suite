@@ -32,16 +32,16 @@ from app.workflow_engine import plan_transition
 router = APIRouter(tags=["orders"])
 
 
-def _get_order_or_404(db: Session, order_id: uuid.UUID) -> Order:
+def _get_order_or_404(db: Session, order_id: uuid.UUID, org_id: uuid.UUID) -> Order:
     order = db.get(Order, order_id)
-    if order is None or order.deleted_at is not None:
+    if order is None or order.deleted_at is not None or order.organization_id != org_id:
         raise not_found("Order")
     return order
 
 
-def _get_bundle_or_404(db: Session, bundle_id: uuid.UUID) -> Bundle:
+def _get_bundle_or_404(db: Session, bundle_id: uuid.UUID, org_id: uuid.UUID) -> Bundle:
     bundle = db.get(Bundle, bundle_id)
-    if bundle is None:
+    if bundle is None or bundle.organization_id != org_id:
         raise not_found("Bundle")
     return bundle
 
@@ -107,7 +107,7 @@ def get_order(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    order = _get_order_or_404(db, order_id)
+    order = _get_order_or_404(db, order_id, actor.organization_id)
     require_permission(
         db, actor, "order.read", request_id=request_id, entity_type="order", action="order.read",
         folder_id=order.folder_id, entity_id=order.id,
@@ -124,7 +124,7 @@ def patch_order(
     request_id: uuid.UUID = Depends(get_request_id),
     if_match_version: int | None = Header(None, alias="If-Match-Version"),
 ):
-    order = _get_order_or_404(db, order_id)
+    order = _get_order_or_404(db, order_id, actor.organization_id)
     require_permission(
         db, actor, "order.write", request_id=request_id, entity_type="order", action="order.update",
         folder_id=order.folder_id, entity_id=order.id,
@@ -154,7 +154,7 @@ def delete_order(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    order = _get_order_or_404(db, order_id)
+    order = _get_order_or_404(db, order_id, actor.organization_id)
     require_permission(
         db, actor, "order.delete", request_id=request_id, entity_type="order", action="order.delete",
         folder_id=order.folder_id, entity_id=order.id,
@@ -179,7 +179,7 @@ def transition_order_status(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    order = _get_order_or_404(db, order_id)
+    order = _get_order_or_404(db, order_id, actor.organization_id)
     plan = plan_transition(db, "order", order.workflow_status_id, body.to_status)
     require_permission(
         db, actor, plan.required_permission, request_id=request_id, entity_type="order",
@@ -206,7 +206,7 @@ def list_order_lines(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    order = _get_order_or_404(db, order_id)
+    order = _get_order_or_404(db, order_id, actor.organization_id)
     require_permission(
         db, actor, "order.read", request_id=request_id, entity_type="order", action="order.lines.list",
         folder_id=order.folder_id,
@@ -227,7 +227,7 @@ def add_order_line(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    order = _get_order_or_404(db, order_id)
+    order = _get_order_or_404(db, order_id, actor.organization_id)
     require_permission(
         db, actor, "order.write", request_id=request_id, entity_type="order", action="order.lines.add",
         folder_id=order.folder_id, entity_id=order.id,
@@ -255,7 +255,7 @@ def patch_order_line(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    order = _get_order_or_404(db, order_id)
+    order = _get_order_or_404(db, order_id, actor.organization_id)
     require_permission(
         db, actor, "order.write", request_id=request_id, entity_type="order", action="order.lines.update",
         folder_id=order.folder_id, entity_id=order.id,
@@ -287,7 +287,7 @@ def get_order_markers(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    order = _get_order_or_404(db, order_id)
+    order = _get_order_or_404(db, order_id, actor.organization_id)
     require_permission(
         db, actor, "order.read", request_id=request_id, entity_type="order", action="order.markers",
         folder_id=order.folder_id,
@@ -303,7 +303,7 @@ def get_order_bundles(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    order = _get_order_or_404(db, order_id)
+    order = _get_order_or_404(db, order_id, actor.organization_id)
     require_permission(
         db, actor, "order.read", request_id=request_id, entity_type="order", action="order.bundles",
         folder_id=order.folder_id,
@@ -343,7 +343,7 @@ def create_bundle(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    order = _get_order_or_404(db, body.order_id)
+    order = _get_order_or_404(db, body.order_id, actor.organization_id)
     require_permission(
         db, actor, "bundle.write", request_id=request_id, entity_type="bundle", action="bundle.create",
         folder_id=order.folder_id,
@@ -383,7 +383,7 @@ def get_bundle(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    bundle = _get_bundle_or_404(db, bundle_id)
+    bundle = _get_bundle_or_404(db, bundle_id, actor.organization_id)
     require_permission(
         db, actor, "bundle.read", request_id=request_id, entity_type="bundle", action="bundle.read",
         entity_id=bundle.id,
@@ -399,7 +399,7 @@ def transition_bundle_status(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    bundle = _get_bundle_or_404(db, bundle_id)
+    bundle = _get_bundle_or_404(db, bundle_id, actor.organization_id)
     plan = plan_transition(db, "bundle", bundle.workflow_status_id, body.to_status)
     require_permission(
         db, actor, plan.required_permission, request_id=request_id, entity_type="bundle",
@@ -426,7 +426,7 @@ def record_cut_event(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    bundle = _get_bundle_or_404(db, bundle_id)
+    bundle = _get_bundle_or_404(db, bundle_id, actor.organization_id)
     plan = plan_transition(db, "bundle", bundle.workflow_status_id, "cut")
     require_permission(
         db, actor, "bundle.write", request_id=request_id, entity_type="bundle", action="bundle.cut_event",

@@ -297,6 +297,66 @@ class BundleOut(BaseModel):
     created_by: uuid.UUID
 
 
+# -- Search / cross-reference (4.8) --------------------------------------------------------------
+
+
+class SearchFilters(BaseModel):
+    folder_id: uuid.UUID | None = None
+    workflow_status: list[str] | None = None
+    updated_after: datetime | None = None
+    updated_before: datetime | None = None
+    customer: str | None = None
+
+
+class CrossReferenceAnchor(BaseModel):
+    """Exactly one field should be set -- the anchor entity results are constrained to be
+    connected to (Section 4.8)."""
+
+    piece_id: uuid.UUID | None = None
+    style_id: uuid.UUID | None = None
+    marker_id: uuid.UUID | None = None
+    order_id: uuid.UUID | None = None
+
+
+DEFAULT_SEARCH_ENTITY_TYPES = ["piece", "style", "marker", "order", "bundle"]
+
+
+class SearchRequest(BaseModel):
+    entity_types: list[str] = DEFAULT_SEARCH_ENTITY_TYPES
+    text: str | None = None
+    filters: SearchFilters = SearchFilters()
+    cross_reference: CrossReferenceAnchor | None = None
+    page: int = 1
+    page_size: int = 50
+
+
+class SearchResultRow(BaseModel):
+    id: uuid.UUID
+    code: str
+    name: str
+    folder_path: str | None
+    workflow_status: str
+    updated_at: datetime
+
+
+class SearchResponse(BaseModel):
+    results: dict[str, list[SearchResultRow]]
+    total_by_type: dict[str, int]
+
+
+class SuggestResultRow(BaseModel):
+    entity_type: str
+    id: uuid.UUID
+    code: str
+    name: str
+
+
+class CrossReferenceOut(BaseModel):
+    entity_type: str
+    id: uuid.UUID
+    related: dict[str, list[SearchResultRow]]
+
+
 # -- Audit log (4.9) ----------------------------------------------------------------------------
 
 

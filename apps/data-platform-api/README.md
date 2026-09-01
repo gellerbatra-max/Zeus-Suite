@@ -1,11 +1,12 @@
 # data-platform-api
 
 Foundation service of the Zeus Suite (see [`docs/planning/00_master/master_plan.md`](../../docs/planning/00_master/master_plan.md)).
-This covers Milestones 1–4 of [`data_management_platform_plan.md`](../../docs/planning/01_data_management_platform/data_management_platform_plan.md#8-phased-build-plan-for-this-application):
+This covers Milestones 1–5 of [`data_management_platform_plan.md`](../../docs/planning/01_data_management_platform/data_management_platform_plan.md#8-phased-build-plan-for-this-application):
 schema/migrations, object storage (SAS URLs against Azurite), permission resolution + JIT user
-provisioning, and now the Section 4.1–4.7 REST API itself (folders, pieces, styles, markers,
-orders/bundles, workflow metadata, audit log) — the literal Phase 1 exit criteria: a stub client
-can create/lock/version/transition a piece and read its full history back, entirely over HTTP.
+provisioning, the Section 4.1–4.7 REST API (folders, pieces, styles, markers, orders/bundles,
+workflow metadata, audit log) — the literal Phase 1 exit criteria: a stub client can
+create/lock/version/transition a piece and read its full history back, entirely over HTTP — and
+now Section 4.8's search/cross-reference ("Find" utility equivalent).
 
 Run it locally with `uvicorn app.main:app --reload` (from this directory, venv active) once the
 steps below are done; interactive docs at `http://localhost:8000/docs`. Auth is a **local-dev
@@ -32,7 +33,7 @@ cp ../../.env.example ../../.env
 # 4. Apply the schema + seed data (no manual SQL — this is the whole database)
 alembic upgrade head
 
-# 5. Run the test suite (Milestone 1-4 exit checks)
+# 5. Run the test suite (Milestone 1-5 exit checks)
 pytest
 ```
 
@@ -69,6 +70,23 @@ pytest
   (the one place that writes `audit_log` rows), and `app/serializers.py` (ORM row → response schema).
 - `tests/test_api_milestone4.py` — the literal Milestone 4 exit check end-to-end over HTTP, plus
   permission-denial and optimistic-concurrency-conflict coverage.
+- `alembic/versions/0004_add_code_trgm_indexes.py` — pg_trgm GIN indexes on entity code fields
+  (piece_code, style_number, etc.) for Section 4.8's "substring fallback" search behavior, which
+  Section 2's DDL only ever wired up for `folders.path` — the same category of spec gap as
+  migration 0003, closed the same way.
+- `app/search_service.py` — Section 4.8's structured search, typeahead suggest, and one-hop
+  cross-reference graph: Postgres FTS + trigram substring matching, cross-reference-anchor
+  resolution, and permission-scoped result filtering (`resolve_read_scope`, distinct from
+  `app/auth.py`'s single-resource `resolve_permissions` — this one resolves every folder a caller
+  can read an entity type in, once per request, so a page of results is filtered in memory
+  instead of re-querying RBAC per row).
+- `tests/test_search.py` — the literal Milestone 5 exit check: a ~500-row interlinked dataset,
+  free-text and cross-reference-anchored queries both correct and sub-200ms, plus cross-tenant
+  isolation and folder-scoped-permission filtering.
+
+**Note:** building Milestone 5 surfaced a real cross-tenant data leak in Milestones 1-4's by-ID
+lookups (`GET /pieces/{id}` etc. never checked the entity's `organization_id` against the caller's
+own) — fixed in the same pass across every entity router, not scoped to search alone.
 
 ## Useful commands
 

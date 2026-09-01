@@ -30,9 +30,9 @@ from app.workflow_engine import plan_transition
 router = APIRouter(prefix="/styles", tags=["styles"])
 
 
-def _get_style_or_404(db: Session, style_id: uuid.UUID) -> Style:
+def _get_style_or_404(db: Session, style_id: uuid.UUID, org_id: uuid.UUID) -> Style:
     style = db.get(Style, style_id)
-    if style is None or style.deleted_at is not None:
+    if style is None or style.deleted_at is not None or style.organization_id != org_id:
         raise not_found("Style")
     return style
 
@@ -96,7 +96,7 @@ def get_style(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    style = _get_style_or_404(db, style_id)
+    style = _get_style_or_404(db, style_id, actor.organization_id)
     require_permission(
         db, actor, "style.read", request_id=request_id, entity_type="style", action="style.read",
         folder_id=style.folder_id, entity_id=style.id,
@@ -113,7 +113,7 @@ def patch_style(
     request_id: uuid.UUID = Depends(get_request_id),
     if_match_version: int | None = Header(None, alias="If-Match-Version"),
 ):
-    style = _get_style_or_404(db, style_id)
+    style = _get_style_or_404(db, style_id, actor.organization_id)
     require_permission(
         db, actor, "style.write", request_id=request_id, entity_type="style", action="style.update",
         folder_id=style.folder_id, entity_id=style.id,
@@ -143,7 +143,7 @@ def delete_style(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    style = _get_style_or_404(db, style_id)
+    style = _get_style_or_404(db, style_id, actor.organization_id)
     require_permission(
         db, actor, "style.delete", request_id=request_id, entity_type="style", action="style.delete",
         folder_id=style.folder_id, entity_id=style.id,
@@ -168,7 +168,7 @@ def transition_style_status(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    style = _get_style_or_404(db, style_id)
+    style = _get_style_or_404(db, style_id, actor.organization_id)
     plan = plan_transition(db, "style", style.workflow_status_id, body.to_status)
     require_permission(
         db, actor, plan.required_permission, request_id=request_id, entity_type="style",
@@ -195,7 +195,7 @@ def list_style_pieces(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    style = _get_style_or_404(db, style_id)
+    style = _get_style_or_404(db, style_id, actor.organization_id)
     require_permission(
         db, actor, "style.read", request_id=request_id, entity_type="style", action="style.pieces.list",
         folder_id=style.folder_id,
@@ -212,7 +212,7 @@ def add_style_piece(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    style = _get_style_or_404(db, style_id)
+    style = _get_style_or_404(db, style_id, actor.organization_id)
     require_permission(
         db, actor, "style.write", request_id=request_id, entity_type="style", action="style.pieces.add",
         folder_id=style.folder_id, entity_id=style.id,
@@ -242,7 +242,7 @@ def remove_style_piece(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    style = _get_style_or_404(db, style_id)
+    style = _get_style_or_404(db, style_id, actor.organization_id)
     require_permission(
         db, actor, "style.write", request_id=request_id, entity_type="style", action="style.pieces.remove",
         folder_id=style.folder_id, entity_id=style.id,
@@ -266,7 +266,7 @@ def get_style_orders(
     db: Session = Depends(get_db),
     request_id: uuid.UUID = Depends(get_request_id),
 ):
-    style = _get_style_or_404(db, style_id)
+    style = _get_style_or_404(db, style_id, actor.organization_id)
     require_permission(
         db, actor, "style.read", request_id=request_id, entity_type="style", action="style.orders",
         folder_id=style.folder_id,
