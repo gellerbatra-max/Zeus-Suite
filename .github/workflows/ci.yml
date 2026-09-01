@@ -25,6 +25,11 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
+      azurite:
+        image: mcr.microsoft.com/azure-storage/azurite
+        ports:
+          - 10000:10000
+
     defaults:
       run:
         working-directory: apps/data-platform-api
@@ -41,6 +46,15 @@ jobs:
 
       - name: Install dependencies
         run: pip install -e ".[dev]"
+
+      - name: Wait for Azurite
+        run: |
+          for i in $(seq 1 30); do
+            (exec 3<>/dev/tcp/127.0.0.1/10000) 2>/dev/null && exit 0
+            sleep 1
+          done
+          echo "Azurite did not become ready in time" >&2
+          exit 1
 
       - name: Apply migrations (schema + seed data)
         run: alembic upgrade head
