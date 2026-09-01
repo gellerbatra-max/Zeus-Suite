@@ -7,6 +7,13 @@ from sqlalchemy.orm import Session
 
 from alembic import command
 from app.db import SessionLocal, engine
+from app.storage import ensure_container
+
+# Section 3.1's container list -- a real deployment provisions these via Bicep ahead of any
+# request; tests provision them once per session for the same reason, rather than having request
+# handlers create containers on demand (which Section 3.1 doesn't specify and would be wasteful
+# per-request overhead in production).
+STORAGE_CONTAINERS = ["dmp-pieces", "dmp-markers", "dmp-nesting-jobs", "dmp-reports", "dmp-audit-archive"]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
@@ -36,6 +43,8 @@ def _migrated_database():
     cfg = _alembic_config()
     _drop_everything()  # defensive cleanup in case a previous run was interrupted
     command.upgrade(cfg, "head")
+    for container in STORAGE_CONTAINERS:
+        ensure_container(container)
     yield
     _drop_everything()
     engine.dispose()
