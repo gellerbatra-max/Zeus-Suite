@@ -141,7 +141,7 @@ jobs:
 
       - name: Run tests
         working-directory: apps/marker-making-service
-        run: pytest
+        run: pytest -s
 
   marker-making-frontend:
     runs-on: ubuntu-latest

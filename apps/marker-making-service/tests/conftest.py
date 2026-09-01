@@ -10,6 +10,8 @@ Postgres + Azurite containers running (docker compose up -d from the repo root).
 """
 
 import subprocess
+import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -71,21 +73,30 @@ def platform_server():
     )
     _ensure_storage_containers()
 
-    proc = subprocess.Popen(
-        [str(PLATFORM_PYTHON), "-m", "uvicorn", "app.main:app", "--port", str(PLATFORM_PORT)],
-        cwd=PLATFORM_DIR, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
-    )
-    try:
-        _wait_for_healthz()
-    except Exception:  # noqa: BLE001 - report the subprocess's own output regardless of cause
-        proc.terminate()
-        output = proc.stdout.read() if proc.stdout else ""
-        raise RuntimeError(f"data-platform-api failed to start:\n{output}") from None
+    # Logged to a file (not PIPE'd and only read on startup failure) so that any 500 the platform
+    # raises *during* the test session -- not just a startup crash -- is still visible: PIPE
+    # output is otherwise silently dropped once nothing reads it, which is exactly what happened
+    # the first time this test suite hit a real server-side error in CI.
+    with tempfile.NamedTemporaryFile(mode="w+", prefix="platform-server-", suffix=".log") as log_file:
+        proc = subprocess.Popen(
+            [str(PLATFORM_PYTHON), "-m", "uvicorn", "app.main:app", "--port", str(PLATFORM_PORT)],
+            cwd=PLATFORM_DIR, stdout=log_file, stderr=subprocess.STDOUT, text=True,
+        )
+        try:
+            _wait_for_healthz()
+        except Exception:  # noqa: BLE001 - report the subprocess's own output regardless of cause
+            proc.terminate()
+            log_file.seek(0)
+            raise RuntimeError(f"data-platform-api failed to start:\n{log_file.read()}") from None
 
-    platform_client.configure_client(httpx.Client(base_url=PLATFORM_BASE_URL, timeout=30.0))
-    yield
-    proc.terminate()
-    try:
-        proc.wait(timeout=10)
-    except subprocess.TimeoutExpired:
-        proc.kill()
+        platform_client.configure_client(httpx.Client(base_url=PLATFORM_BASE_URL, timeout=30.0))
+        yield
+        proc.terminate()
+        try:
+            proc.wait(timeout=10)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+        log_file.seek(0)
+        print("\n----- data-platform-api server log (full test session) -----", file=sys.stderr)
+        print(log_file.read(), file=sys.stderr)
+        print("----- end data-platform-api server log -----\n", file=sys.stderr)
