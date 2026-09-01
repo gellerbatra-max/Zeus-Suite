@@ -1,0 +1,49 @@
+flowchart TB
+    classDef platform fill:#2E7D32,color:#fff,font-weight:bold
+    classDef app fill:#1565C0,color:#fff,font-weight:bold
+    classDef store fill:#37474F,color:#fff
+    classDef external fill:#8E44AD,color:#fff
+    classDef data fill:#EAF2FB,stroke:#1565C0,color:#000
+
+    subgraph PLATFORM["DATA MANAGEMENT PLATFORM (foundation, built first)"]
+        OBJ["Azure Blob Storage<br/>pattern/marker/grading files, versioned"]:::store
+        DB["Azure Database for PostgreSQL<br/>pieces, styles, markers, orders,<br/>bundles, workflow status, audit log"]:::store
+        AUTH["Microsoft Entra ID<br/>SSO + role-based access"]:::store
+        APIAPP["Data Management App<br/>virtual folder browser, structured search,<br/>Activity Log viewer, reporting"]:::platform
+        OBJ --- DB
+        DB --- APIAPP
+        AUTH --- APIAPP
+    end
+
+    subgraph PD["PATTERN DESIGN & GRADING"]
+        PDCORE["Piece creation, point/line editing,<br/>seams, darts/pleats, grading,<br/>digitizing, plotting"]:::app
+    end
+
+    subgraph MM["MARKER MAKING & PRODUCTION OUTPUT (unified)"]
+        NEST["Manual + automatic nesting<br/>(Layrule replay AND algorithmic solver)<br/>matching, fuse-blocking, bundles"]:::app
+        OUT["Cut-data generation, plot/export,<br/>order/piece metadata,<br/>bundle/RFID tag generation"]:::app
+        NEST --> OUT
+    end
+
+    subgraph FMT["FORMAT INTERCHANGE & LEGACY MIGRATION"]
+        IGES_M["IGES import/export<br/>(single-piece CAD interchange)"]:::app
+        MIGRATE["Bulk legacy migration utility<br/>with error/warning triage"]:::app
+    end
+
+    CUTTER["Cutting room hardware<br/>(cutter, label/tag printer)"]:::external
+    MES["Existing MES / WIP tracking system"]:::external
+    OTHERCAD["Other CAD systems<br/>(customers, suppliers)"]:::external
+    LEGACY["Legacy/competing system data<br/>(customer onboarding)"]:::external
+
+    PDCORE -->|"save piece"| APIAPP
+    APIAPP -->|"fetch pieces"| NEST
+    NEST -->|"save marker"| APIAPP
+    APIAPP -->|"fetch marker"| OUT
+    OUT -->|"cut data + tag manifest"| CUTTER
+    OUT -->|"bundle_id + attributes"| MES
+    APIAPP -->|"fetch/save piece"| IGES_M
+    IGES_M <-->|".igs files"| OTHERCAD
+    LEGACY --> MIGRATE
+    MIGRATE -->|"converted pieces"| APIAPP
+
+    class PLATFORM platform
