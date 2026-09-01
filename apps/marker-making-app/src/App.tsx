@@ -31,6 +31,7 @@ function toCanvasPlacement(workspace: WorkspaceOut, pieceId: string): CanvasPlac
     sizeCode: placement?.size_code ?? 'M',
     quantity: placement?.quantity ?? 1,
     stripeMarkId: data.stripe_mark_id ?? null,
+    cutterStripeNeeded: data.cutter_stripe_needed ?? true,
   }
 }
 
@@ -72,6 +73,8 @@ export default function App() {
     ? workspace.available_pieces.filter((piece) => !placements.some((p) => p.pieceId === piece.id))
     : []
 
+  const selectedCutterStripeNeeded = placements.find((p) => p.pieceId === selectedPieceId)?.cutterStripeNeeded ?? true
+
   const handlePlace = (pieceId: string, x: number, y: number) => {
     if (!workspace) return
     const piece = workspace.available_pieces.find((p) => p.id === pieceId)
@@ -81,6 +84,7 @@ export default function App() {
       {
         pieceId, pieceCode: piece.piece_code, x, y, rotationDeg: 0, flipX: false, flipY: false,
         width: piece.width, height: piece.height, sizeCode: 'M', quantity: 1, stripeMarkId: null,
+        cutterStripeNeeded: true,
       },
     ])
     setSelectedPieceId(pieceId)
@@ -133,6 +137,7 @@ export default function App() {
           placement_data: {
             x: p.x, y: p.y, rotation_deg: p.rotationDeg, flip_x: p.flipX, flip_y: p.flipY,
             width: p.width, height: p.height, stripe_mark_id: p.stripeMarkId,
+            cutter_stripe_needed: p.cutterStripeNeeded,
           },
         })),
       })
@@ -203,6 +208,12 @@ export default function App() {
               </button>
               <button disabled={!selectedPieceId} onClick={unplaceSelected}>
                 Unplace
+              </button>
+              <button
+                disabled={!selectedPieceId}
+                onClick={() => updateSelected((p) => ({ ...p, cutterStripeNeeded: !p.cutterStripeNeeded }))}
+              >
+                Cutter Stripe: {selectedCutterStripeNeeded ? 'Needed' : 'Not Needed'}
               </button>
             </div>
           </div>

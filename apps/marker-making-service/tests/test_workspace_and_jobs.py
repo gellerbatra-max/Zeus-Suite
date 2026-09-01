@@ -65,7 +65,10 @@ def test_workspace_load_save_and_status_transition():
             },
             {
                 "piece_id": piece_b["id"], "size_code": "M", "quantity": 1,
-                "placement_data": {"x": 100, "y": 10, "rotation_deg": 90, "flip_x": True, "width": 60, "height": 90},
+                "placement_data": {
+                    "x": 100, "y": 10, "rotation_deg": 90, "flip_x": True, "width": 60, "height": 90,
+                    "cutter_stripe_needed": False,
+                },
             },
         ]
     }
@@ -79,13 +82,20 @@ def test_workspace_load_save_and_status_transition():
     assert len(workspace["placements"]) == 2
     placement_by_piece = {p["piece_id"]: p for p in workspace["placements"]}
     assert placement_by_piece[piece_a["id"]]["placement_data"]["x"] == 10
+    # cutter_stripe_needed defaults to True (Sec 1.4: "orange = still needs auto-cutter stripe
+    # matching") when the caller doesn't specify it, per PlacementData's schema default.
+    assert placement_by_piece[piece_a["id"]]["placement_data"]["cutter_stripe_needed"] is True
     assert placement_by_piece[piece_b["id"]]["placement_data"]["rotation_deg"] == 90
     assert placement_by_piece[piece_b["id"]]["placement_data"]["flip_x"] is True
+    assert placement_by_piece[piece_b["id"]]["placement_data"]["cutter_stripe_needed"] is False
 
     # Reload independently -- confirms this actually persisted through the real platform API,
     # not just an in-memory echo of the request.
     resp = client.get(f"/markers/{marker['id']}/workspace", headers=headers)
-    assert len(resp.json()["placements"]) == 2
+    reloaded = resp.json()
+    assert len(reloaded["placements"]) == 2
+    reloaded_by_piece = {p["piece_id"]: p for p in reloaded["placements"]}
+    assert reloaded_by_piece[piece_b["id"]]["placement_data"]["cutter_stripe_needed"] is False
 
 
 def test_workspace_partial_placement_status():

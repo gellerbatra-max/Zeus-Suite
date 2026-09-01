@@ -9,6 +9,7 @@ export interface PlacementData {
   width: number
   height: number
   stripe_mark_id?: string | null
+  cutter_stripe_needed?: boolean
 }
 
 export interface WorkspacePiece {

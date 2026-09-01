@@ -21,10 +21,14 @@ service's README for the full architecture).
   bite-boundary validation. Dragging a piece that has an assigned stripe mark calls the guidance
   endpoint (throttled ~150ms) and the canvas renders a green vector arrow toward the nearest valid
   grid point, with a "Matching Location Not Found" banner when none is within tolerance — a small
-  red tick on a placed piece marks that it has a stripe mark assigned. **Known limitation**: there's
-  no way to *unset* a marker's rule table once linked from this UI (or the API underneath it) —
-  `PATCH` treats `null` as "field not provided," same as every other field on that resource, so
-  selecting "(none)" in the rule-table dropdown updates local state but not the persisted marker.
+  tick on a placed piece marks that it has a stripe mark assigned, colored per the **cutter stripe
+  setup toggle** (§1.4, orange = still needs auto-cutter stripe matching, blue = not needed) — a
+  "Cutter Stripe: Needed/Not Needed" button in the piece toolbar flips it for the selected piece,
+  persisted via `placement_data.cutter_stripe_needed` the same way `stripe_mark_id` is. **Known
+  limitation**: there's no way to *unset* a marker's rule table once linked from this UI (or the API
+  underneath it) — `PATCH` treats `null` as "field not provided," same as every other field on that
+  resource, so selecting "(none)" in the rule-table dropdown updates local state but not the
+  persisted marker.
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -70,3 +74,9 @@ table all persisted through the real platform API (verified directly via
 a single piece (the violation-detected/cleared path is covered by
 `marker-making-service`'s automated test instead, since it needs 1-canvas-unit precision that isn't
 meaningful to demonstrate via manual mouse dragging).
+
+**Cutter stripe setup toggle**: selected a matched piece (rendering an orange tick, the default
+"still needs" state), clicked "Cutter Stripe: Needed" to flip it — the tick turned blue and the
+button label updated to "Not Needed" — saved, and confirmed `placement_data.cutter_stripe_needed`
+persisted through the real platform API via `GET /markers/{id}/pieces`; then flipped it back and
+re-verified the same round trip in the other direction.

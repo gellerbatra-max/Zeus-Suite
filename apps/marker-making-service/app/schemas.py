@@ -12,6 +12,7 @@ class PlacementData(BaseModel):
     width: float
     height: float
     stripe_mark_id: str | None = None
+    cutter_stripe_needed: bool = True
 
 
 class PlacementIn(BaseModel):

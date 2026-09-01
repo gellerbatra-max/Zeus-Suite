@@ -16,6 +16,7 @@ export interface CanvasPlacement {
   sizeCode: string
   quantity: number
   stripeMarkId: string | null
+  cutterStripeNeeded: boolean
 }
 
 interface Props {
@@ -106,7 +107,14 @@ export function MarkerCanvas({
                 y={p.flipY ? p.height : 0}
               />
               {p.stripeMarkId && (
-                <Circle x={6} y={6} radius={4} fill="#c0392b" stroke="#ffffff" strokeWidth={1} />
+                // Cutter stripe setup (Sec 1.4): orange while the piece still needs
+                // auto-cutter stripe matching, blue once it's been marked as not needed.
+                <Circle
+                  x={6} y={6} radius={4}
+                  fill={p.cutterStripeNeeded ? '#e08600' : '#2e5aac'}
+                  stroke="#ffffff"
+                  strokeWidth={1}
+                />
               )}
             </Group>
           ))}

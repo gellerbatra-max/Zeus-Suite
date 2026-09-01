@@ -33,7 +33,8 @@ reached only through its API — because §2 of this plan already listed that ta
 platform's Postgres, and because matching genuinely needs structured, queryable schema that opaque
 JSONB placement data can't provide (stripe geometry, named marks, offsets). Placement's own schema
 stays untouched; a piece's assignment to a stripe mark rides along inside the existing
-`marker_pieces.placement_data` JSONB as an added `stripe_mark_id` key.
+`marker_pieces.placement_data` JSONB as an added `stripe_mark_id` key, and the cutter stripe setup
+toggle (below) the same way as a `cutter_stripe_needed` key — neither needed a platform change.
 
 ## What's here
 
@@ -60,6 +61,10 @@ stays untouched; a piece's assignment to a stripe mark rides along inside the ex
     X axis is the cutter's bite/length axis (the same convention the canvas already uses), and takes
     a `bite_length` query value directly rather than a `cutter_parameter_table`, which doesn't exist
     yet (that's `§1.10`/APSM territory, still deferred below).
+  - **Cutter stripe setup** (§1.4) — no dedicated endpoint; `PlacementData.cutter_stripe_needed`
+    (default `True`, "still needs auto-cutter stripe matching") rides through the normal
+    `PUT /markers/{id}/workspace` save path exactly like `stripe_mark_id`, so the cut file can later
+    read it straight off `placement_data` without a second lookup.
 - `app/synthetic_geometry.py` — deterministic placeholder piece dimensions (Pattern Design doesn't
   exist yet, so there's no real silhouette geometry to nest).
 
@@ -89,8 +94,9 @@ bump lines, measure, etc.).
 Within matching (§1.4) specifically, Slice 2 built a scoped first pass — method selection
 (Standard/5-Star), the matching rules table with Standard's offset entry, Define Stripes geometry,
 Define Stripe Marks with Next/Prev step-through, basic in-canvas guidance, and basic bite-boundary
-validation — and explicitly deferred the rest: APSM/cutter-code generation, point-vs-line matching's
-line+label alternative (only the point/rule-table style is built), Define Material/Material Pattern
-(fabric reference image overlay — needs blob-storage plumbing orthogonal to geometry), Stripe-only-
-in-a-set, Overlapped checking (matching context), the cutter stripe setup toggle, weave-line tools,
-and angled-stripe geometry in the guidance math (see `app/api/matching.py`'s docstring).
+validation, plus the cutter stripe setup toggle added just after — and explicitly deferred the rest:
+APSM/cutter-code generation, point-vs-line matching's line+label alternative (only the
+point/rule-table style is built), Define Material/Material Pattern (fabric reference image overlay
+— needs blob-storage plumbing orthogonal to geometry), Stripe-only-in-a-set, Overlapped checking
+(matching context), weave-line tools, and angled-stripe geometry in the guidance math (see
+`app/api/matching.py`'s docstring).
