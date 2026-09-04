@@ -8,13 +8,19 @@ as opaque JSON (see data-platform-api's app/api/matching.py docstring) -- this i
 actually gets interpreted: structural validation (offset count caps, id generation, sequence
 bookkeeping) and the guidance/bite-validation math below.
 
-Two explicit simplifications, not full parity with marker_making_production_plan.md Sec 1.4:
-  - Guidance treats each stripe definition's grid as axis-aligned. h_angle_deg/v_angle_deg are
-    accepted and stored (forward-compatible with a later slice) but not applied to the nearest-
-    match calculation.
-  - Bite-boundary validation assumes the marker's X axis is the cutter's bite/length axis (the
-    same convention the Slice-1 canvas already uses), and is parameterized by a `bite_length`
-    query value rather than a `cutter_parameter_table`, which doesn't exist yet.
+One remaining explicit simplification, not full parity with marker_making_production_plan.md
+Sec 1.4: bite-boundary validation assumes the marker's X axis is the cutter's bite/length axis
+(the same convention the Slice-1 canvas already uses), and is parameterized by a `bite_length`
+query value rather than a `cutter_parameter_table`, which doesn't exist yet.
+
+Guidance now applies h_angle_deg/v_angle_deg (previously stored but ignored -- treated as
+axis-aligned). See `_nearest_along_family` below for the angle convention: h_angle_deg/v_angle_deg
+are the *spacing-direction* angle of each stripe family (measured from +X, standard math
+convention), not the line direction -- e.g. h_angle_deg=0 means the h-family's repeat is measured
+straight along X (so its lines run vertically), matching the pre-angle defaults exactly. This
+convention was chosen because it's the one under which the already-shipped defaults
+(h_angle_deg=0.0, v_angle_deg=90.0) reduce to exactly the axis-aligned behavior this slice shipped
+with -- 0 deg = spacing along +X, 90 deg = spacing along +Y.
 """
 
 import math
@@ -291,11 +297,22 @@ def apply_matching(marker_id: str, body: ApplyMatchingRequest, client: PlatformC
     }
 
 
-def _nearest_grid_value(actual: float, origin: float, distance: float) -> float | None:
+def _nearest_along_family(
+    x: float, y: float, origin_x: float, origin_y: float, distance: float, angle_deg: float
+) -> tuple[float, float] | None:
+    """The (dx, dy) world-space correction that snaps (x, y) onto the nearest line of a stripe
+    family whose lines repeat every `distance` along the direction `angle_deg` (from +X, standard
+    math convention) -- i.e. the perpendicular projection onto that family's nearest grid line.
+    At angle_deg=0 this reduces to a pure X correction; at angle_deg=90 to a pure Y correction --
+    exactly the axis-aligned behavior this slice originally shipped with."""
     if not distance:
         return None
-    steps = round((actual - origin) / distance)
-    return origin + steps * distance
+    angle = math.radians(angle_deg)
+    ux, uy = math.cos(angle), math.sin(angle)
+    projection = (x - origin_x) * ux + (y - origin_y) * uy
+    target_projection = round(projection / distance) * distance
+    delta = target_projection - projection
+    return delta * ux, delta * uy
 
 
 @router.post("/markers/{marker_id}/matching/guidance", response_model=MatchGuidanceOut)
@@ -318,23 +335,26 @@ def match_guidance(
     if definition is None:
         return MatchGuidanceOut(found=False, targets=[], message="Selected stripe mark has no stripe definition.")
 
-    # Simplification: h_angle_deg/v_angle_deg are stored but not applied here -- the grid is
-    # treated as axis-aligned this slice (see module docstring).
-    nearest_x = _nearest_grid_value(body.x, definition.get("origin_x", 0.0), definition.get("h_distance", 0.0))
-    nearest_y = _nearest_grid_value(body.y, definition.get("origin_y", 0.0), definition.get("v_distance", 0.0))
+    origin_x = definition.get("origin_x", 0.0)
+    origin_y = definition.get("origin_y", 0.0)
+    h_correction = _nearest_along_family(
+        body.x, body.y, origin_x, origin_y, definition.get("h_distance", 0.0), definition.get("h_angle_deg", 0.0)
+    )
+    v_correction = _nearest_along_family(
+        body.x, body.y, origin_x, origin_y, definition.get("v_distance", 0.0), definition.get("v_angle_deg", 90.0)
+    )
 
     targets: list[MatchGuidanceTarget] = []
     found = True
-    if nearest_x is not None:
-        dx = nearest_x - body.x
-        if abs(dx) > SNAP_TOLERANCE:
+    for axis, correction in (("horizontal", h_correction), ("vertical", v_correction)):
+        if correction is None:
+            continue
+        dx, dy = correction
+        if max(abs(dx), abs(dy)) > SNAP_TOLERANCE:
             found = False
-            targets.append(MatchGuidanceTarget(axis="horizontal", dx=dx, dy=0.0, target_x=nearest_x, target_y=body.y))
-    if nearest_y is not None:
-        dy = nearest_y - body.y
-        if abs(dy) > SNAP_TOLERANCE:
-            found = False
-            targets.append(MatchGuidanceTarget(axis="vertical", dx=0.0, dy=dy, target_x=body.x, target_y=nearest_y))
+            targets.append(
+                MatchGuidanceTarget(axis=axis, dx=dx, dy=dy, target_x=body.x + dx, target_y=body.y + dy)
+            )
 
     return MatchGuidanceOut(found=found, targets=targets, message=None if found else "Matching Location Not Found")
 

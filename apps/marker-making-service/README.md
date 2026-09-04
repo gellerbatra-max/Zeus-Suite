@@ -53,9 +53,13 @@ toggle (below) the same way as a `cutter_stripe_needed` key — neither needed a
   sequence bookkeeping), plus two pieces of real business logic this service owns:
   - **In-canvas match guidance** (`POST /markers/{id}/matching/guidance`) — computes the nearest
     valid grid point for a dragged piece and returns vector-arrow targets, per §1.4's "live vector-
-    arrow guides... blinking + 'Matching Location Not Found'." **Simplification**: each stripe
-    definition's grid is treated as axis-aligned — `h_angle_deg`/`v_angle_deg` are accepted and
-    stored (forward-compatible with a later slice) but not applied to the nearest-match math.
+    arrow guides... blinking + 'Matching Location Not Found'." Applies `h_angle_deg`/`v_angle_deg`:
+    each stripe family's grid lines repeat every `h_distance`/`v_distance` along the direction given
+    by that angle (measured from +X, standard math convention) — `_nearest_along_family` projects
+    the query point onto that direction, snaps to the nearest multiple of the distance, and returns
+    the perpendicular correction vector. At the shipped defaults (`h_angle_deg=0`, `v_angle_deg=90`)
+    this reduces to exactly the original pure-X/pure-Y behavior. **Remaining simplification**: no
+    other angle geometry (e.g. non-orthogonal skew between the two families) beyond this.
   - **Bite-boundary validation** (`GET /markers/{id}/matching/validate-bite`) — flags pieces sharing
     a stripe mark that fall into different cutter "bites." **Simplification**: assumes the marker's
     X axis is the cutter's bite/length axis (the same convention the canvas already uses), and takes
@@ -94,9 +98,9 @@ bump lines, measure, etc.).
 Within matching (§1.4) specifically, Slice 2 built a scoped first pass — method selection
 (Standard/5-Star), the matching rules table with Standard's offset entry, Define Stripes geometry,
 Define Stripe Marks with Next/Prev step-through, basic in-canvas guidance, and basic bite-boundary
-validation — plus the cutter stripe setup toggle and overlapped checking (frontend-only, see
-[`marker-making-app`](../marker-making-app)'s README) added just after — and explicitly deferred
-the rest: APSM/cutter-code generation, point-vs-line matching's line+label alternative (only the
-point/rule-table style is built), Define Material/Material Pattern (fabric reference image overlay
-— needs blob-storage plumbing orthogonal to geometry), Stripe-only-in-a-set, weave-line tools, and
-angled-stripe geometry in the guidance math (see `app/api/matching.py`'s docstring).
+validation — plus the cutter stripe setup toggle, overlapped checking (frontend-only, see
+[`marker-making-app`](../marker-making-app)'s README), and angled-stripe geometry in the guidance
+math added just after — and explicitly deferred the rest: APSM/cutter-code generation,
+point-vs-line matching's line+label alternative (only the point/rule-table style is built),
+Define Material/Material Pattern (fabric reference image overlay — needs blob-storage plumbing
+orthogonal to geometry), Stripe-only-in-a-set, and weave-line tools.

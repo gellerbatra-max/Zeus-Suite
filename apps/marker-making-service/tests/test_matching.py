@@ -2,6 +2,9 @@
 method application to a marker, in-canvas guidance math, and bite-boundary validation -- all
 proxying through the real data-platform-api subprocess (see conftest.py)."""
 
+import math
+
+import pytest
 from fastapi.testclient import TestClient
 from helpers import grant_role, platform_client, seed_nestable_piece, unique_suffix
 
@@ -207,6 +210,69 @@ def test_guidance_computes_nearest_grid_target_and_snaps_within_tolerance():
     resp = client.post(
         f"/markers/{marker['id']}/matching/guidance",
         json={"piece_id": "piece-x", "stripe_mark_id": mark_id, "x": 20.5, "y": 0},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["found"] is True
+    assert resp.json()["targets"] == []
+
+
+def test_guidance_applies_angled_stripe_family():
+    """h_angle_deg=45 tilts the h-family's spacing direction 45deg off +X (previously ignored --
+    treated as pure-X spacing regardless of the stored angle). Family: origin (0,0), distance 100,
+    spacing direction (cos45, sin45). A point exactly 100 units along that direction from the
+    origin (100*cos45, 100*sin45) sits precisely on grid line index 1 -- no correction needed."""
+    unique = unique_suffix()
+    headers, _folder, marker = _seed_org_and_marker(unique)
+
+    table = client.post(
+        "/matching-rule-tables", json={"name": f"AngledTable-{unique}", "method": "standard"}, headers=headers
+    ).json()
+    table = client.post(
+        f"/matching-rule-tables/{table['id']}/stripe-definitions",
+        json={
+            "name": "Angled Def", "origin_x": 0.0, "origin_y": 0.0,
+            "h_distance": 100.0, "h_angle_deg": 45.0, "v_distance": 0.0,
+        },
+        headers=headers,
+    ).json()
+    def_id = table["stripe_definitions"][0]["id"]
+    table = client.post(
+        f"/matching-rule-tables/{table['id']}/stripe-marks",
+        json={"name": "Angled Mark", "stripe_definition_id": def_id, "position": {"x": 0, "y": 0}},
+        headers=headers,
+    ).json()
+    mark_id = table["stripe_marks"][0]["id"]
+    client.post(
+        f"/markers/{marker['id']}/matching/apply",
+        json={"matching_rule_table_id": table["id"], "matching_method": "standard"},
+        headers=headers,
+    )
+
+    resp = client.post(
+        f"/markers/{marker['id']}/matching/guidance",
+        json={"piece_id": "piece-x", "stripe_mark_id": mark_id, "x": 100, "y": 0},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["found"] is False
+    assert len(body["targets"]) == 1
+    target = body["targets"][0]
+    assert target["axis"] == "horizontal"
+    # Projection of query point (100, 0) onto the 45deg spacing axis is 100*cos(45); the nearest
+    # grid multiple of distance=100 is 100 itself (round(0.707) == 1), so the correction needed
+    # to reach it is (100 - 100*cos(45)) along that same axis.
+    cos45, sin45 = math.cos(math.radians(45)), math.sin(math.radians(45))
+    expected_delta = 100 - 100 * cos45
+    assert target["dx"] == pytest.approx(expected_delta * cos45, abs=0.01)
+    assert target["dy"] == pytest.approx(expected_delta * sin45, abs=0.01)
+
+    on_grid_x = 100 * math.cos(math.radians(45))
+    on_grid_y = 100 * math.sin(math.radians(45))
+    resp = client.post(
+        f"/markers/{marker['id']}/matching/guidance",
+        json={"piece_id": "piece-x", "stripe_mark_id": mark_id, "x": on_grid_x, "y": on_grid_y},
         headers=headers,
     )
     assert resp.status_code == 200, resp.text
