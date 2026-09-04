@@ -1,5 +1,5 @@
-import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
-import { Arrow, Circle, Group, Image as KonvaImage, Layer, Line, Stage, Text } from 'react-konva'
+import { forwardRef, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { Arrow, Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text } from 'react-konva'
 import type Konva from 'konva'
 import type {
   Annotation,
@@ -15,6 +15,7 @@ import type {
 } from '../api/types'
 import { gradedPerimeter, nestColorFor } from '../grading'
 import { computeMeasurement } from '../measurement'
+import { snapValue } from '../preferences'
 
 // Geometry is authored/stored in real-world mm (pattern_design_plan.md Sec 3.3/6.2) and mapped to
 // canvas pixels through a single zoom/pan transform shared by every layer -- Konva's Stage
@@ -22,22 +23,19 @@ import { computeMeasurement } from '../measurement'
 const CANVAS_WIDTH = 900
 const CANVAS_HEIGHT = 600
 const GRID_EXTENT = 3000
-const GRID_STEP = 50
 const MIN_SCALE = 0.2
 const MAX_SCALE = 6
 
-function buildGridLines(): number[][] {
+function buildGridLines(gridStep: number): number[][] {
   const lines: number[][] = []
-  for (let x = -GRID_EXTENT; x <= GRID_EXTENT; x += GRID_STEP) {
+  for (let x = -GRID_EXTENT; x <= GRID_EXTENT; x += gridStep) {
     lines.push([x, -GRID_EXTENT, x, GRID_EXTENT])
   }
-  for (let y = -GRID_EXTENT; y <= GRID_EXTENT; y += GRID_STEP) {
+  for (let y = -GRID_EXTENT; y <= GRID_EXTENT; y += gridStep) {
     lines.push([-GRID_EXTENT, y, GRID_EXTENT, y])
   }
   return lines
 }
-
-const GRID_LINES = buildGridLines()
 
 function centroidOf(points: { x: number; y: number }[]): { x: number; y: number } {
   if (points.length === 0) return { x: 0, y: 0 }
@@ -85,6 +83,11 @@ interface Props {
   measurements: Measurement[]
   referenceImage: HTMLImageElement | null
   referenceImageOpacity: number
+  gridSpacingMm: number
+  snapToGrid: boolean
+  pieceFillColor: string
+  pieceStrokeColor: string
+  backgroundColor: string
   tool: Tool
   onAddPoint: (x: number, y: number) => void
   onMovePoint: (pointRef: string, from: { x: number; y: number }, to: { x: number; y: number }) => void
@@ -116,6 +119,11 @@ export const PatternCanvas = forwardRef<Konva.Stage, Props>(function PatternCanv
     measurements,
     referenceImage,
     referenceImageOpacity,
+    gridSpacingMm,
+    snapToGrid,
+    pieceFillColor,
+    pieceStrokeColor,
+    backgroundColor,
     tool,
     onAddPoint,
     onMovePoint,
@@ -135,6 +143,8 @@ export const PatternCanvas = forwardRef<Konva.Stage, Props>(function PatternCanv
 ) {
   const stageRef = useRef<Konva.Stage>(null)
   useImperativeHandle(forwardedRef, () => stageRef.current as Konva.Stage, [])
+  const gridLines = useMemo(() => buildGridLines(gridSpacingMm), [gridSpacingMm])
+  const snap = (v: number) => (snapToGrid ? snapValue(v, gridSpacingMm) : v)
   const [scale, setScale] = useState(1)
   const [lineStartRef, setLineStartRef] = useState<string | null>(null)
   const [measureStartRef, setMeasureStartRef] = useState<string | null>(null)
@@ -221,7 +231,7 @@ export const PatternCanvas = forwardRef<Konva.Stage, Props>(function PatternCanv
     const stage = stageRef.current
     const pos = stage?.getRelativePointerPosition()
     if (!pos) return
-    if (tool === 'draw') onAddPoint(Math.round(pos.x), Math.round(pos.y))
+    if (tool === 'draw') onAddPoint(snap(Math.round(pos.x)), snap(Math.round(pos.y)))
     else handleFreePick(Math.round(pos.x), Math.round(pos.y))
   }
 
@@ -279,7 +289,8 @@ export const PatternCanvas = forwardRef<Konva.Stage, Props>(function PatternCanv
       >
         {/* Background/grid layer (pattern_design_plan.md Sec 6.1): redrawn only on zoom/pan, never on edit. */}
         <Layer listening={false}>
-          {GRID_LINES.map((pts, i) => (
+          <Rect x={-GRID_EXTENT} y={-GRID_EXTENT} width={GRID_EXTENT * 2} height={GRID_EXTENT * 2} fill={backgroundColor} />
+          {gridLines.map((pts, i) => (
             <Line key={i} points={pts} stroke="#eceef2" strokeWidth={1 / scale} />
           ))}
           <Line points={[-GRID_EXTENT, 0, GRID_EXTENT, 0]} stroke="#9aa1af" strokeWidth={1.5 / scale} />
@@ -309,9 +320,9 @@ export const PatternCanvas = forwardRef<Konva.Stage, Props>(function PatternCanv
             <Line
               points={flatPoints}
               closed={points.length >= 3}
-              stroke="#2e5aac"
+              stroke={pieceStrokeColor}
               strokeWidth={2 / scale}
-              fill="rgba(46,90,172,0.08)"
+              fill={pieceFillColor}
               onClick={handlePerimeterClick}
               onTap={handlePerimeterClick}
             />
@@ -324,7 +335,7 @@ export const PatternCanvas = forwardRef<Konva.Stage, Props>(function PatternCanv
               <Line
                 key={`edge-${i}`}
                 points={[a.x, a.y, b.x, b.y]}
-                stroke="#2e5aac"
+                stroke={pieceStrokeColor}
                 strokeWidth={2 / scale}
                 hitStrokeWidth={16 / scale}
                 onClick={() => onSetSeam([a.point_ref, b.point_ref])}
@@ -491,7 +502,7 @@ export const PatternCanvas = forwardRef<Konva.Stage, Props>(function PatternCanv
                     ? '#8e44ad'
                     : '#ffffff'
               }
-              stroke="#2e5aac"
+              stroke={pieceStrokeColor}
               strokeWidth={1.5 / scale}
               draggable={tool === 'edit'}
               onDragStart={(e) => {
@@ -505,7 +516,7 @@ export const PatternCanvas = forwardRef<Konva.Stage, Props>(function PatternCanv
                 dragOriginRef.current = null
                 setLiveDrag(null)
                 if (!from) return
-                const to = { x: Math.round(e.target.x()), y: Math.round(e.target.y()) }
+                const to = { x: snap(Math.round(e.target.x())), y: snap(Math.round(e.target.y())) }
                 if (from.x !== to.x || from.y !== to.y) onMovePoint(p.point_ref, from, to)
               }}
               onDblClick={() => tool === 'edit' && onDeletePoint(i)}

@@ -67,6 +67,23 @@ input {
   margin: 0;
 }
 
+.app__header-controls {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.preferences-panel {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 10px 20px;
+  font-size: 0.85rem;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+}
+
 .app__toolbar {
   display: flex;
   align-items: center;

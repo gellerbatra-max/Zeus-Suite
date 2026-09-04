@@ -6,6 +6,8 @@ import { PatternCanvas } from './components/PatternCanvas'
 import type { Tool } from './components/PatternCanvas'
 import { ShapeTools } from './components/ShapeTools'
 import { GradingTools } from './components/GradingTools'
+import { PreferencesPanel } from './components/PreferencesPanel'
+import { TemplateTools } from './components/TemplateTools'
 import { api, ApiError } from './api/client'
 import type { FolderOut, FreePoint, InternalLine, PieceGeometryDocument, PieceOut, Point } from './api/types'
 import {
@@ -30,6 +32,10 @@ import {
 import type { Command } from './commands'
 import { circlePerimeter, rectanglePerimeter } from './shapes'
 import { flipPieceHorizontal, flipPieceVertical, rotatePiece90 } from './transform'
+import { loadPreferences, savePreferences } from './preferences'
+import type { Preferences } from './preferences'
+import { deleteTemplate, instantiateTemplate, loadTemplates, saveTemplate } from './templates'
+import type { ShapeTemplate } from './templates'
 
 const DEFAULT_FOLDER_NAME = 'Pattern Design Pieces'
 
@@ -127,6 +133,17 @@ export default function App() {
   const [referenceImage, setReferenceImage] = useState<HTMLImageElement | null>(null)
   const [referenceImageOpacity, setReferenceImageOpacity] = useState(0.5)
   const canvasStageRef = useRef<Konva.Stage | null>(null)
+  // Preferences (Sec 4 Customization) and shape templates (Sec 4 Automation) are per-operator
+  // localStorage state, not piece data -- see preferences.ts/templates.ts for why they never touch
+  // the geometry document or the undo/redo stack.
+  const [preferences, setPreferencesState] = useState<Preferences>(loadPreferences)
+  const [showPreferences, setShowPreferences] = useState(false)
+  const [templates, setTemplates] = useState<ShapeTemplate[]>(loadTemplates)
+
+  const setPreferences = (next: Preferences) => {
+    setPreferencesState(next)
+    savePreferences(next)
+  }
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -484,6 +501,18 @@ export default function App() {
     replaceShape(circlePerimeter(radiusMm), 'Create circle')
   }
 
+  const saveCurrentAsTemplate = (name: string) => {
+    setTemplates(saveTemplate(name, geometry.perimeter))
+  }
+
+  const applyTemplate = (template: ShapeTemplate) => {
+    replaceShape(instantiateTemplate(template), `Apply template "${template.name}"`)
+  }
+
+  const deleteTemplateByName = (name: string) => {
+    setTemplates(deleteTemplate(name))
+  }
+
   const saveGeometry = async () => {
     if (!selectedPiece || !folder) return
     setSaving(true)
@@ -498,6 +527,25 @@ export default function App() {
       setSaving(false)
     }
   }
+
+  // AutoSave Timer (Sec 4 Customization -- "periodic crash-recovery backup interval"). The
+  // interval itself only depends on the on/off toggle, the interval length, and which piece is
+  // open -- not on `geometry`, which changes on every keystroke and would otherwise tear down and
+  // restart the timer on every edit instead of firing on a stable cadence. saveGeometryRef always
+  // points at the latest saveGeometry closure (updated every render) so the interval still saves
+  // current, not stale, geometry when it fires.
+  const saveGeometryRef = useRef(saveGeometry)
+  useEffect(() => {
+    saveGeometryRef.current = saveGeometry
+  })
+
+  useEffect(() => {
+    if (!preferences.autosaveEnabled || !selectedPiece?.id) return
+    const id = window.setInterval(() => {
+      saveGeometryRef.current()
+    }, preferences.autosaveIntervalSec * 1000)
+    return () => window.clearInterval(id)
+  }, [preferences.autosaveEnabled, preferences.autosaveIntervalSec, selectedPiece?.id])
 
   const submitForApproval = async () => {
     if (!selectedPiece || !folder) return
@@ -517,8 +565,13 @@ export default function App() {
     <div className="app">
       <header className="app__header">
         <h1>Zeus Suite — Pattern Design</h1>
-        <IdentityBar />
+        <div className="app__header-controls">
+          <button onClick={() => setShowPreferences((v) => !v)}>Preferences</button>
+          <IdentityBar />
+        </div>
       </header>
+
+      {showPreferences && <PreferencesPanel preferences={preferences} onChange={setPreferences} />}
 
       {error && <p className="error-text">{error}</p>}
 
@@ -716,6 +769,13 @@ export default function App() {
                   </div>
                 )}
                 <ShapeTools onRectangle={createRectangle} onCircle={createCircle} disabled={saving} />
+                <TemplateTools
+                  templates={templates}
+                  canSave={geometry.perimeter.length >= 3}
+                  onSave={saveCurrentAsTemplate}
+                  onApply={applyTemplate}
+                  onDelete={deleteTemplateByName}
+                />
                 <PatternCanvas
                   ref={canvasStageRef}
                   points={geometry.perimeter}
@@ -731,6 +791,11 @@ export default function App() {
                   measurements={geometry.measurements}
                   referenceImage={referenceImage}
                   referenceImageOpacity={referenceImageOpacity}
+                  gridSpacingMm={preferences.gridSpacingMm}
+                  snapToGrid={preferences.snapToGrid}
+                  pieceFillColor={preferences.pieceFillColor}
+                  pieceStrokeColor={preferences.pieceStrokeColor}
+                  backgroundColor={preferences.backgroundColor}
                   tool={tool}
                   onAddPoint={addPoint}
                   onMovePoint={movePoint}
