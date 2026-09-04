@@ -143,6 +143,12 @@ class MatchingRuleTablePatch(BaseModel):
     stripe_repeat: float | None = None
 
 
+class WeaveLineIn(BaseModel):
+    angle_deg: float = 0.0
+    offset: float = 0.0
+    visible: bool = True
+
+
 class MatchingRuleTableOut(BaseModel):
     id: str
     name: str
@@ -152,6 +158,7 @@ class MatchingRuleTableOut(BaseModel):
     offsets: OffsetsIn
     stripe_definitions: list[StripeDefinitionOut]
     stripe_marks: list[StripeMarkOut]
+    weave_line: WeaveLineIn | None
     version: int
 
 

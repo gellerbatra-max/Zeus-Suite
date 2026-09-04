@@ -245,9 +245,16 @@ class MatchingRuleTableOut(BaseModel):
     offsets_json: dict[str, Any] | None
     stripe_definitions_json: list[dict[str, Any]]
     stripe_marks_json: list[dict[str, Any]]
+    weave_line_json: dict[str, Any] | None
     version: int
     created_at: datetime
     created_by: uuid.UUID
+
+
+class WeaveLineReplace(BaseModel):
+    angle_deg: float = 0.0
+    offset: float = 0.0
+    visible: bool = True
 
 
 class OffsetsReplace(BaseModel):

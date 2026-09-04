@@ -21,6 +21,15 @@ straight along X (so its lines run vertically), matching the pre-angle defaults 
 convention was chosen because it's the one under which the already-shipped defaults
 (h_angle_deg=0.0, v_angle_deg=90.0) reduce to exactly the axis-aligned behavior this slice shipped
 with -- 0 deg = spacing along +X, 90 deg = spacing along +Y.
+
+Weave-line tools: a matching_rule_table now also carries one *global* reference line
+(`weave_line_json`: angle_deg + a perpendicular `offset` from the marker origin + `visible`),
+covering "Edit Weave Line of All pieces" and "Show/hide weave line". The frontend computes
+`offset` for "center on selected piece" itself (projecting that piece's center onto the line's
+perpendicular direction) and just calls this same replace endpoint -- no separate "center" route.
+Per-piece override ("Edit Weave Line" for one piece) is deferred; "Font on Weaveline Upwards
+always" isn't a setting to expose -- the doc's "always" reads as fixed behavior, so the frontend
+just always renders the weave-line label upright rather than rotated with the line.
 """
 
 import math
@@ -48,6 +57,7 @@ from app.schemas import (
     StripeMarkPatch,
     StripeMarkStepRequest,
     ValidateBiteOut,
+    WeaveLineIn,
 )
 
 router = APIRouter(tags=["matching"])
@@ -58,6 +68,7 @@ SNAP_TOLERANCE = 1.0
 
 def _shape(raw: dict) -> MatchingRuleTableOut:
     offsets = raw.get("offsets_json") or {}
+    weave_line = raw.get("weave_line_json")
     return MatchingRuleTableOut(
         id=raw["id"],
         name=raw["name"],
@@ -67,6 +78,7 @@ def _shape(raw: dict) -> MatchingRuleTableOut:
         offsets=OffsetsIn(horizontal=offsets.get("horizontal", []), vertical=offsets.get("vertical", [])),
         stripe_definitions=[StripeDefinitionOut(**d) for d in raw.get("stripe_definitions_json", [])],
         stripe_marks=[StripeMarkOut(**m) for m in raw.get("stripe_marks_json", [])],
+        weave_line=WeaveLineIn(**weave_line) if weave_line else None,
         version=raw["version"],
     )
 
@@ -127,6 +139,22 @@ def replace_offsets(table_id: str, body: OffsetsIn, client: PlatformClient = Dep
     current = _get_raw_table(client, table_id)
     raw = client.put(
         f"/matching-rule-tables/{table_id}/offsets",
+        json=body.model_dump(),
+        headers={"If-Match-Version": str(current["version"])},
+    )
+    return _shape(raw)
+
+
+# -- Weave-line tools -----------------------------------------------------------------------------
+# Scoped to the global weave line ("Edit Weave Line of All pieces" + "Show/hide weave line").
+# Per-piece override ("Edit Weave Line" for a single piece) is deferred -- see module docstring.
+
+
+@router.put("/matching-rule-tables/{table_id}/weave-line", response_model=MatchingRuleTableOut)
+def replace_weave_line(table_id: str, body: WeaveLineIn, client: PlatformClient = Depends(get_platform_client)):
+    current = _get_raw_table(client, table_id)
+    raw = client.put(
+        f"/matching-rule-tables/{table_id}/weave-line",
         json=body.model_dump(),
         headers={"If-Match-Version": str(current["version"])},
     )

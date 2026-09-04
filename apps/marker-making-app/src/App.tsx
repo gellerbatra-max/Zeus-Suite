@@ -7,7 +7,7 @@ import { overlapAmount } from './geometry'
 import { NestingJobPanel } from './components/NestingJobPanel'
 import { MatchingPanel } from './components/MatchingPanel'
 import { api, ApiError } from './api/client'
-import type { MatchGuidanceOut, WorkspaceOut } from './api/types'
+import type { MatchGuidanceOut, WeaveLine, WorkspaceOut } from './api/types'
 
 // The platform's marker.fabric_width isn't wired into the workspace payload for this slice --
 // the boundary here is a fixed visual reference, not tied to a real fabric width yet.
@@ -48,6 +48,7 @@ export default function App() {
   const [matchingMethod, setMatchingMethod] = useState<string | null>(null)
   const [matchingRuleTableId, setMatchingRuleTableId] = useState<string | null>(null)
   const [guidance, setGuidance] = useState<{ pieceId: string; result: MatchGuidanceOut } | null>(null)
+  const [weaveLine, setWeaveLine] = useState<WeaveLine | null>(null)
   const lastGuidanceAt = useRef(0)
 
   const openMarker = async () => {
@@ -64,6 +65,7 @@ export default function App() {
       setMatchingMethod(ws.matching_method)
       setMatchingRuleTableId(ws.matching_rule_table_id)
       setGuidance(null)
+      setWeaveLine(null)
     } catch (err) {
       setWorkspace(null)
       setError(err instanceof ApiError ? err.message : String(err))
@@ -75,6 +77,11 @@ export default function App() {
     : []
 
   const selectedCutterStripeNeeded = placements.find((p) => p.pieceId === selectedPieceId)?.cutterStripeNeeded ?? true
+
+  const selectedPieceCenter = (() => {
+    const selected = placements.find((p) => p.pieceId === selectedPieceId)
+    return selected ? { x: selected.x + selected.width / 2, y: selected.y + selected.height / 2 } : null
+  })()
 
   const selectedOverlaps = (() => {
     const selected = placements.find((p) => p.pieceId === selectedPieceId)
@@ -204,6 +211,7 @@ export default function App() {
               onSelect={setSelectedPieceId}
               selectedPieceId={selectedPieceId}
               guidance={guidance}
+              weaveLine={weaveLine}
             />
             {guidance?.result.message && <p className="matching-warning">{guidance.result.message}</p>}
             {selectedOverlaps.length > 0 && (
@@ -244,11 +252,13 @@ export default function App() {
             matchingRuleTableId={matchingRuleTableId}
             selectedPieceId={selectedPieceId}
             selectedPieceStripeMarkId={placements.find((p) => p.pieceId === selectedPieceId)?.stripeMarkId ?? null}
+            selectedPieceCenter={selectedPieceCenter}
             onMatchingApplied={(method, ruleTableId) => {
               setMatchingMethod(method)
               setMatchingRuleTableId(ruleTableId)
             }}
             onAssignMark={handleAssignMark}
+            onWeaveLineChanged={setWeaveLine}
           />
 
           <NestingJobPanel markerId={workspace.marker_id} orderId={workspace.order_id} />

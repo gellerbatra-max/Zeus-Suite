@@ -25,6 +25,7 @@ class MatchingRuleTable(Base):
     offsets_json = Column(JSONB)
     stripe_definitions_json = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
     stripe_marks_json = Column(JSONB, nullable=False, server_default=text("'[]'::jsonb"))
+    weave_line_json = Column(JSONB)
     comment = Column(Text)
     created_by = Column(UUID(as_uuid=True), ForeignKey("dmp.users.id"), nullable=False)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=text("now()"))

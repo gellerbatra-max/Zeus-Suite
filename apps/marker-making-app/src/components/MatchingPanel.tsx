@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api/client'
-import type { MatchingRuleTableOut, StripeDefinition, ValidateBiteOut } from '../api/types'
+import type { MatchingRuleTableOut, StripeDefinition, ValidateBiteOut, WeaveLine } from '../api/types'
+import { weaveLineOffsetForPoint } from '../geometry'
 
 interface Props {
   markerId: string
@@ -8,8 +9,10 @@ interface Props {
   matchingRuleTableId: string | null
   selectedPieceId: string | null
   selectedPieceStripeMarkId: string | null
+  selectedPieceCenter: { x: number; y: number } | null
   onMatchingApplied: (method: string | null, ruleTableId: string | null) => void
   onAssignMark: (pieceId: string, markId: string | null) => void
+  onWeaveLineChanged: (weaveLine: WeaveLine | null) => void
 }
 
 function errMessage(err: unknown): string {
@@ -22,8 +25,10 @@ export function MatchingPanel({
   matchingRuleTableId,
   selectedPieceId,
   selectedPieceStripeMarkId,
+  selectedPieceCenter,
   onMatchingApplied,
   onAssignMark,
+  onWeaveLineChanged,
 }: Props) {
   const [tables, setTables] = useState<MatchingRuleTableOut[]>([])
   const [table, setTable] = useState<MatchingRuleTableOut | null>(null)
@@ -41,6 +46,10 @@ export function MatchingPanel({
   const [biteLength, setBiteLength] = useState('20')
   const [biteResult, setBiteResult] = useState<ValidateBiteOut | null>(null)
 
+  const [weaveAngle, setWeaveAngle] = useState('0')
+  const [weaveOffset, setWeaveOffset] = useState('0')
+  const [weaveVisible, setWeaveVisible] = useState(true)
+
   useEffect(() => {
     api
       .get<{ items: MatchingRuleTableOut[] }>('/matching-rule-tables')
@@ -51,6 +60,7 @@ export function MatchingPanel({
   useEffect(() => {
     if (!matchingRuleTableId) {
       setTable(null)
+      onWeaveLineChanged(null)
       return
     }
     api
@@ -59,6 +69,12 @@ export function MatchingPanel({
         setTable(t)
         setOffsetsH(t.offsets.horizontal.join(', '))
         setOffsetsV(t.offsets.vertical.join(', '))
+        if (t.weave_line) {
+          setWeaveAngle(String(t.weave_line.angle_deg))
+          setWeaveOffset(String(t.weave_line.offset))
+          setWeaveVisible(t.weave_line.visible)
+        }
+        onWeaveLineChanged(t.weave_line)
       })
       .catch((err) => setError(errMessage(err)))
   }, [matchingRuleTableId])
@@ -66,6 +82,7 @@ export function MatchingPanel({
   const refreshTable = (t: MatchingRuleTableOut) => {
     setTable(t)
     setTables((prev) => (prev.some((x) => x.id === t.id) ? prev.map((x) => (x.id === t.id ? t : x)) : [...prev, t]))
+    onWeaveLineChanged(t.weave_line)
   }
 
   const createTable = async () => {
@@ -183,6 +200,29 @@ export function MatchingPanel({
     }
   }
 
+  const saveWeaveLine = async (angleDeg: number, offset: number, visible: boolean) => {
+    if (!table) return
+    setError(null)
+    try {
+      const updated = await api.put<MatchingRuleTableOut>(`/matching-rule-tables/${table.id}/weave-line`, {
+        angle_deg: angleDeg, offset, visible,
+      })
+      refreshTable(updated)
+      setWeaveAngle(String(angleDeg))
+      setWeaveOffset(String(offset))
+      setWeaveVisible(visible)
+    } catch (err) {
+      setError(errMessage(err))
+    }
+  }
+
+  const centerWeaveLineOnSelectedPiece = () => {
+    if (!selectedPieceCenter) return
+    const angleDeg = Number(weaveAngle) || 0
+    const offset = weaveLineOffsetForPoint(angleDeg, selectedPieceCenter.x, selectedPieceCenter.y)
+    saveWeaveLine(angleDeg, offset, weaveVisible)
+  }
+
   const runValidateBite = async () => {
     setError(null)
     try {
@@ -253,6 +293,31 @@ export function MatchingPanel({
           <input placeholder="horizontal" value={offsetsH} onChange={(e) => setOffsetsH(e.target.value)} />
           <input placeholder="vertical" value={offsetsV} onChange={(e) => setOffsetsV(e.target.value)} />
           <button onClick={saveOffsets}>Save Offsets</button>
+        </section>
+      )}
+
+      {table && (
+        <section className="matching-panel__section">
+          <label>Weave line</label>
+          <div className="matching-panel__inline-form">
+            <input placeholder="Angle (deg)" value={weaveAngle} onChange={(e) => setWeaveAngle(e.target.value)} />
+            <input placeholder="Offset" value={weaveOffset} onChange={(e) => setWeaveOffset(e.target.value)} />
+            <label className="matching-panel__checkbox-label">
+              <input
+                type="checkbox" checked={weaveVisible}
+                onChange={(e) => setWeaveVisible(e.target.checked)}
+              />
+              Visible
+            </label>
+          </div>
+          <div className="matching-panel__inline-form">
+            <button onClick={() => saveWeaveLine(Number(weaveAngle) || 0, Number(weaveOffset) || 0, weaveVisible)}>
+              Save Weave Line
+            </button>
+            <button disabled={!selectedPieceCenter} onClick={centerWeaveLineOnSelectedPiece}>
+              Center on Selected Piece
+            </button>
+          </div>
         </section>
       )}
 

@@ -1,8 +1,8 @@
 import type { DragEvent } from 'react'
-import { Arrow, Circle, Group, Layer, Rect, Stage, Text } from 'react-konva'
+import { Arrow, Circle, Group, Layer, Line, Rect, Stage, Text } from 'react-konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
-import type { MatchGuidanceOut } from '../api/types'
-import { boundingBoxesOverlap } from '../geometry'
+import type { MatchGuidanceOut, WeaveLine } from '../api/types'
+import { boundingBoxesOverlap, weaveLineSegment } from '../geometry'
 
 export interface CanvasPlacement {
   pieceId: string
@@ -30,6 +30,7 @@ interface Props {
   onSelect: (pieceId: string | null) => void
   selectedPieceId: string | null
   guidance?: { pieceId: string; result: MatchGuidanceOut } | null
+  weaveLine?: WeaveLine | null
 }
 
 export function MarkerCanvas({
@@ -42,6 +43,7 @@ export function MarkerCanvas({
   onSelect,
   selectedPieceId,
   guidance,
+  weaveLine,
 }: Props) {
   const overlapping = new Set<string>()
   for (let i = 0; i < placements.length; i++) {
@@ -116,6 +118,22 @@ export function MarkerCanvas({
             </Group>
           ))}
         </Layer>
+        {weaveLine?.visible && (
+          <Layer listening={false}>
+            {(() => {
+              const length = Math.sqrt(markerWidth ** 2 + markerHeight ** 2) * 1.5
+              const seg = weaveLineSegment(weaveLine.angle_deg, weaveLine.offset, markerWidth, markerHeight, length)
+              return (
+                <>
+                  <Line points={[seg.x1, seg.y1, seg.x2, seg.y2]} stroke="#8a6d3b" strokeWidth={1} dash={[6, 4]} />
+                  {/* "Font on Weaveline Upwards always" (Sec 1.4): the label is never rotated
+                      with the line -- it always renders upright. */}
+                  <Text text="WEAVE" x={seg.midX + 4} y={seg.midY - 14} fontSize={10} fill="#8a6d3b" />
+                </>
+              )
+            })()}
+          </Layer>
+        )}
         {guidance && guidance.result.targets.length > 0 && (
           <Layer listening={false}>
             {guidance.result.targets.map((target, i) => {

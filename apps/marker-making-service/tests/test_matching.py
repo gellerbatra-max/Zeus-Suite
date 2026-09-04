@@ -128,6 +128,27 @@ def test_offsets_replace_enforces_max_three_per_axis():
     assert resp.json()["offsets"] == {"horizontal": [0.0, 5.0], "vertical": [0.0]}
 
 
+def test_weave_line_replace_and_default_null():
+    unique = unique_suffix()
+    headers, _folder, _marker = _seed_org_and_marker(unique)
+    table = client.post(
+        "/matching-rule-tables", json={"name": f"WeaveTable-{unique}", "method": "standard"}, headers=headers
+    ).json()
+    assert table["weave_line"] is None
+
+    resp = client.put(
+        f"/matching-rule-tables/{table['id']}/weave-line",
+        json={"angle_deg": 30.0, "offset": 12.5, "visible": True},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["weave_line"] == {"angle_deg": 30.0, "offset": 12.5, "visible": True}
+
+    resp = client.get(f"/matching-rule-tables/{table['id']}", headers=headers)
+    assert resp.json()["weave_line"] == {"angle_deg": 30.0, "offset": 12.5, "visible": True}
+
+
 def test_apply_matching_reflected_in_workspace():
     unique = unique_suffix()
     headers, _folder, marker = _seed_org_and_marker(unique)

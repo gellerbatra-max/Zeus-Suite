@@ -77,6 +77,12 @@ export interface StripeMark {
   position: { x: number; y: number }
 }
 
+export interface WeaveLine {
+  angle_deg: number
+  offset: number
+  visible: boolean
+}
+
 export interface MatchingRuleTableOut {
   id: string
   name: string
@@ -86,6 +92,7 @@ export interface MatchingRuleTableOut {
   offsets: OffsetsIn
   stripe_definitions: StripeDefinition[]
   stripe_marks: StripeMark[]
+  weave_line: WeaveLine | null
   version: number
 }
 

@@ -87,6 +87,16 @@ def test_offsets_and_stripe_subresources_replace_and_audit(db_session):
         headers={**HEADERS, "If-Match-Version": str(table["version"])},
     )
     assert resp.status_code == 200, resp.text
+    table = resp.json()
+
+    resp = client.put(
+        f"/matching-rule-tables/{table_id}/weave-line",
+        json={"angle_deg": 15.0, "offset": 5.0, "visible": False},
+        headers={**HEADERS, "If-Match-Version": str(table["version"])},
+    )
+    assert resp.status_code == 200, resp.text
+    table = resp.json()
+    assert table["weave_line_json"] == {"angle_deg": 15.0, "offset": 5.0, "visible": False}
 
     resp = client.get(
         "/audit-log", params={"entity_type": "matching_rule_table", "entity_id": table_id}, headers=HEADERS
@@ -97,6 +107,7 @@ def test_offsets_and_stripe_subresources_replace_and_audit(db_session):
     assert "matching_rule_table.offsets.replace" in actions
     assert "matching_rule_table.stripe_definitions.replace" in actions
     assert "matching_rule_table.stripe_marks.replace" in actions
+    assert "matching_rule_table.weave_line.replace" in actions
 
 
 def test_marker_can_link_to_matching_rule_table(db_session):

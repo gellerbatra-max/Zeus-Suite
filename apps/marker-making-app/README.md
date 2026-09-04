@@ -32,7 +32,14 @@ service's README for the full architecture).
   limitation**: there's no way to *unset* a marker's rule table once linked from this UI (or the API
   underneath it) — `PATCH` treats `null` as "field not provided," same as every other field on that
   resource, so selecting "(none)" in the rule-table dropdown updates local state but not the
-  persisted marker.
+  persisted marker. **Weave-line tools** (§1.4) — a global reference line (angle + perpendicular
+  offset) editable via the Weave Line section: enter angle/offset directly, toggle Visible, or click
+  "Center on Selected Piece" (`src/geometry.ts`'s `weaveLineOffsetForPoint` computes the offset that
+  puts the line through that piece's center at the current angle) — the canvas renders it as a long
+  dashed segment (`weaveLineSegment`, centered on whichever point of the infinite line is closest to
+  the canvas middle, since exact line/rectangle clipping isn't done) with an always-upright "WEAVE"
+  label, per the plan's "Font on Weaveline Upwards always." **Deferred**: per-piece weave-line
+  override ("Edit Weave Line" for a single piece, vs. this global "Edit Weave Line of All pieces").
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -89,3 +96,10 @@ re-verified the same round trip in the other direction.
 (hand-computed overlap: 30 on the x-axis, 80 on the y-axis), opened the marker, selected the second
 piece, and confirmed the readout under the canvas showed exactly "Overlaps PANEL-OV-A by 80.0
 (y-axis)" — matching the hand calculation and picking the correct (larger) axis.
+
+**Weave-line tools**: created a matching rule table, selected a placed piece at
+`{x:250,y:50,w:100,h:120}` (center `(300, 210)`), left angle at its default 0, clicked "Center on
+Selected Piece" — confirmed the resulting offset was exactly `210` (hand calc: at angle 0 the
+perpendicular is straight up/down, so the offset is just the center's Y) and the canvas rendered a
+horizontal dashed line through the piece's vertical center with an upright "WEAVE" label. Unchecked
+Visible and confirmed the line disappeared from the canvas.

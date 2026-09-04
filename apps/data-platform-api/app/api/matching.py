@@ -26,6 +26,7 @@ from app.schemas import (
     MatchingRuleTablePatch,
     OffsetsReplace,
     Page,
+    WeaveLineReplace,
 )
 from app.serializers import matching_rule_table_out
 
@@ -238,5 +239,32 @@ def replace_stripe_marks(
         db, organization_id=actor.organization_id, user_id=actor.user_id,
         action="matching_rule_table.stripe_marks.replace", entity_type="matching_rule_table",
         entity_id=row.id, request_id=request_id, after_state={"count": len(body.items)}, result="success",
+    )
+    return matching_rule_table_out(db, row)
+
+
+@router.put("/{table_id}/weave-line")
+def replace_weave_line(
+    table_id: uuid.UUID,
+    body: WeaveLineReplace,
+    actor: Actor = Depends(get_current_actor),
+    db: Session = Depends(get_db),
+    request_id: uuid.UUID = Depends(get_request_id),
+    if_match_version: int | None = Header(None, alias="If-Match-Version"),
+):
+    row = _get_table_or_404(db, table_id, actor.organization_id)
+    require_permission(
+        db, actor, "matching_rule_table.write", request_id=request_id,
+        entity_type="matching_rule_table", action="matching_rule_table.weave_line.replace", entity_id=row.id,
+    )
+    check_if_match_version(if_match_version, row.version)
+    row.weave_line_json = {"angle_deg": body.angle_deg, "offset": body.offset, "visible": body.visible}
+    row.updated_by = actor.user_id
+    row.version += 1
+    db.flush()
+    record_audit(
+        db, organization_id=actor.organization_id, user_id=actor.user_id,
+        action="matching_rule_table.weave_line.replace", entity_type="matching_rule_table",
+        entity_id=row.id, request_id=request_id, after_state=row.weave_line_json, result="success",
     )
     return matching_rule_table_out(db, row)
