@@ -5,11 +5,13 @@
 // the shape that diffing would build on, and it's what backs the undo/redo stack now.
 
 import type {
+  Annotation,
   Dart,
   GradeRule,
   GradeRuleTable,
   GrainLine,
   InternalLine,
+  Measurement,
   Notch,
   PieceGeometryDocument,
   Point,
@@ -203,5 +205,68 @@ export function replaceShapeCommand(
     label,
     do: (doc) => ({ ...doc, perimeter: newPerimeter, internal_lines: [] }),
     undo: (doc) => ({ ...doc, perimeter: oldPerimeter, internal_lines: oldInternalLines }),
+  }
+}
+
+export function addAnnotationCommand(annotation: Annotation): Command {
+  return {
+    label: 'Add annotation',
+    do: (doc) => ({ ...doc, annotations: [...doc.annotations, annotation] }),
+    undo: (doc) => ({
+      ...doc,
+      annotations: doc.annotations.filter((a) => a.annotation_ref !== annotation.annotation_ref),
+    }),
+  }
+}
+
+export function removeAnnotationCommand(annotation: Annotation, index: number): Command {
+  return {
+    label: 'Remove annotation',
+    do: (doc) => ({
+      ...doc,
+      annotations: doc.annotations.filter((a) => a.annotation_ref !== annotation.annotation_ref),
+    }),
+    undo: (doc) => {
+      const annotations = [...doc.annotations]
+      annotations.splice(index, 0, annotation)
+      return { ...doc, annotations }
+    },
+  }
+}
+
+export function addMeasurementCommand(measurement: Measurement): Command {
+  return {
+    label: 'Add measurement',
+    do: (doc) => ({ ...doc, measurements: [...doc.measurements, measurement] }),
+    undo: (doc) => ({
+      ...doc,
+      measurements: doc.measurements.filter((m) => m.measurement_ref !== measurement.measurement_ref),
+    }),
+  }
+}
+
+export function removeMeasurementCommand(measurement: Measurement, index: number): Command {
+  return {
+    label: 'Remove measurement',
+    do: (doc) => ({
+      ...doc,
+      measurements: doc.measurements.filter((m) => m.measurement_ref !== measurement.measurement_ref),
+    }),
+    undo: (doc) => {
+      const measurements = [...doc.measurements]
+      measurements.splice(index, 0, measurement)
+      return { ...doc, measurements }
+    },
+  }
+}
+
+// Whole-piece rotate/flip (transform.ts) replaces the entire document in one shot -- simplest
+// correct undo is restoring the pre-transform document wholesale, same pattern as
+// replaceShapeCommand above.
+export function transformDocumentCommand(newDoc: PieceGeometryDocument, oldDoc: PieceGeometryDocument, label: string): Command {
+  return {
+    label,
+    do: () => newDoc,
+    undo: () => oldDoc,
   }
 }

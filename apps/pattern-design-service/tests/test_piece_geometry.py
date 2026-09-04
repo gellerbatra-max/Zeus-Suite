@@ -211,6 +211,50 @@ def test_grade_rule_table_round_trips_with_perimeter():
     assert reloaded["grade_rule_table"] == geometry["grade_rule_table"]
 
 
+def test_annotation_and_measurement_round_trip():
+    """Phase 2.5: a text annotation and a point-to-point spec measurement save and reload
+    alongside the perimeter. The measurement stores only the target/tolerance, not a computed
+    distance -- that's derived live client-side from current point positions."""
+    unique = unique_suffix()
+    headers, folder = _seed_folder(unique)
+
+    piece = client.post(
+        "/pieces",
+        json={"folder_id": folder["id"], "piece_code": f"CUFF-{unique}", "piece_name": "Cuff"},
+        headers=headers,
+    ).json()
+
+    geometry = {
+        "schema_version": 1,
+        "units": "mm",
+        "perimeter": [
+            {"point_ref": "p1", "x": 0.0, "y": 0.0, "type": "corner"},
+            {"point_ref": "p2", "x": 100.0, "y": 0.0, "type": "corner"},
+            {"point_ref": "p3", "x": 100.0, "y": 60.0, "type": "corner"},
+            {"point_ref": "p4", "x": 0.0, "y": 60.0, "type": "corner"},
+        ],
+        "annotations": [{"annotation_ref": "a1", "x": 50.0, "y": -10.0, "text": "Cut 2"}],
+        "measurements": [
+            {
+                "measurement_ref": "m1",
+                "label": "Width",
+                "point_ref_a": "p1",
+                "point_ref_b": "p2",
+                "target_value_mm": 100.0,
+                "tolerance_mm": 2.0,
+            }
+        ],
+    }
+    resp = client.put(f"/pieces/{piece['id']}/geometry", json=geometry, headers=headers)
+    assert resp.status_code == 200, resp.text
+
+    resp = client.get(f"/pieces/{piece['id']}/geometry", headers=headers)
+    assert resp.status_code == 200, resp.text
+    reloaded = resp.json()
+    assert reloaded["annotations"] == geometry["annotations"]
+    assert reloaded["measurements"] == geometry["measurements"]
+
+
 def test_status_transition_round_trips():
     unique = unique_suffix()
     headers, folder = _seed_folder(unique)

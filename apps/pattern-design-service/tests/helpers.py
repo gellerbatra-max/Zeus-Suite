@@ -3,13 +3,22 @@ RBAC roles via a direct DB write -- the same one-time admin-bootstrap pattern da
 own tests and marker-making-service's tests use (every RBAC system needs an out-of-band way to
 create its first admin; there's no HTTP path for that yet on any service)."""
 
+import os
 import uuid
 
 import httpx
 import psycopg
 
 PLATFORM_BASE_URL = "http://127.0.0.1:8098"
-PLATFORM_DATABASE_URL = "postgresql://zeus:zeus@localhost:5432/zeus_suite"
+# The platform subprocess (conftest.py) already respects a DATABASE_URL override in its own
+# environment; this direct psycopg connection has to match it or grant_role silently writes to
+# (or, as happened once, reads from) the wrong database -- e.g. when a developer points the
+# subprocess at an isolated test database via DATABASE_URL to avoid colliding with another
+# service's migrations on the shared `zeus_suite` DB. psycopg wants a plain postgresql:// URL,
+# not SQLAlchemy's postgresql+psycopg:// form, hence the strip.
+PLATFORM_DATABASE_URL = os.environ.get(
+    "DATABASE_URL", "postgresql://zeus:zeus@localhost:5432/zeus_suite"
+).replace("postgresql+psycopg://", "postgresql://")
 
 
 def _raise_on_error(response: httpx.Response) -> None:

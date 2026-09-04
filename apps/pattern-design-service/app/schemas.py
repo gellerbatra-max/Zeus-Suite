@@ -1,5 +1,3 @@
-from typing import Any
-
 from pydantic import BaseModel
 
 GEOMETRY_SCHEMA_VERSION = 1
@@ -7,8 +5,8 @@ GEOMETRY_SCHEMA_VERSION = 1
 
 class Point(BaseModel):
     """A perimeter/internal point, keyed by a stable `point_ref` UUID assigned at creation time
-    and preserved across edits -- see pattern_design_plan.md Sec 3.3. `GradeRule.point_ref` (Phase
-    2.4) references points by this id; measurement points (Phase 2.5) will too."""
+    and preserved across edits -- see pattern_design_plan.md Sec 3.3. `GradeRule.point_ref`
+    (Phase 2.4) and `Measurement.point_ref_a/b` (Phase 2.5) both reference points by this id."""
 
     point_ref: str
     x: float
@@ -114,10 +112,35 @@ class GradeRuleTable(BaseModel):
     rules: list[GradeRule] = []
 
 
+class Annotation(BaseModel):
+    """A free-floating text note (Gerber's "Annotate Piece / Add Text", Sec 4 Text/Annotation) --
+    placed at an arbitrary x/y, not anchored to an existing perimeter/internal point, matching how
+    the real tool works (click anywhere on or near a line to place a note)."""
+
+    annotation_ref: str
+    x: float
+    y: float
+    text: str
+
+
+class Measurement(BaseModel):
+    """A named point-to-point spec measurement (Gerber's "Straight-Line Distance Between Two
+    Points" plus the spec-chart concept from pattern_design_plan.md Sec 3.2's `measurement_points`
+    table -- kept in the geometry document instead, same reasoning as GradeRuleTable above).
+    The actual distance is deliberately NOT stored here: it's computed live from the current point
+    positions on every read, so it can never go stale if a point moves after the measurement was
+    defined -- the whole point of a spec measurement is catching drift, not freezing a snapshot."""
+
+    measurement_ref: str
+    label: str
+    point_ref_a: str
+    point_ref_b: str
+    target_value_mm: float | None = None
+    tolerance_mm: float | None = None
+
+
 class PieceGeometryDocument(BaseModel):
-    """One structured JSON document per piece per version (pattern_design_plan.md Sec 3.3).
-    annotations is still carried as a placeholder for Phase 2.5 (Text/Annotation) -- nothing
-    writes it yet."""
+    """One structured JSON document per piece per version (pattern_design_plan.md Sec 3.3)."""
 
     schema_version: int = GEOMETRY_SCHEMA_VERSION
     units: str = "mm"
@@ -128,7 +151,8 @@ class PieceGeometryDocument(BaseModel):
     notches: list[Notch] = []
     grain_line: GrainLine | None = None
     grade_rule_table: GradeRuleTable | None = None
-    annotations: list[Any] = []
+    annotations: list[Annotation] = []
+    measurements: list[Measurement] = []
 
 
 def empty_geometry_document() -> PieceGeometryDocument:

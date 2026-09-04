@@ -1,8 +1,20 @@
-import { useRef, useState } from 'react'
-import { Arrow, Circle, Layer, Line, Stage, Text } from 'react-konva'
+import { forwardRef, useImperativeHandle, useRef, useState } from 'react'
+import { Arrow, Circle, Group, Image as KonvaImage, Layer, Line, Stage, Text } from 'react-konva'
 import type Konva from 'konva'
-import type { Dart, FreePoint, GradeRuleTable, GrainLine, InternalLine, Notch, Point, SeamAllowance } from '../api/types'
+import type {
+  Annotation,
+  Dart,
+  FreePoint,
+  GradeRuleTable,
+  GrainLine,
+  InternalLine,
+  Measurement,
+  Notch,
+  Point,
+  SeamAllowance,
+} from '../api/types'
 import { gradedPerimeter, nestColorFor } from '../grading'
+import { computeMeasurement } from '../measurement'
 
 // Geometry is authored/stored in real-world mm (pattern_design_plan.md Sec 3.3/6.2) and mapped to
 // canvas pixels through a single zoom/pan transform shared by every layer -- Konva's Stage
@@ -44,7 +56,20 @@ function centroidOf(points: { x: number; y: number }[]): { x: number; y: number 
 //   notch       - click an existing perimeter point to toggle a notch there
 //   grain-line  - click two points in sequence to set the piece's single grain line
 //   grade       - click an existing perimeter point to set its X/Y delta for the active size step
-export type Tool = 'draw' | 'edit' | 'add-line' | 'delete-line' | 'seam' | 'dart' | 'notch' | 'grain-line' | 'grade'
+//   annotate    - click anywhere to place a text note; click an existing note to remove it
+//   measure     - click two existing points in sequence to define a spec measurement between them
+export type Tool =
+  | 'draw'
+  | 'edit'
+  | 'add-line'
+  | 'delete-line'
+  | 'seam'
+  | 'dart'
+  | 'notch'
+  | 'grain-line'
+  | 'grade'
+  | 'annotate'
+  | 'measure'
 
 interface Props {
   points: Point[]
@@ -56,6 +81,10 @@ interface Props {
   gradeRuleTable: GradeRuleTable | null
   activeSizeStep: number | null
   showGradeNest: boolean
+  annotations: Annotation[]
+  measurements: Measurement[]
+  referenceImage: HTMLImageElement | null
+  referenceImageOpacity: number
   tool: Tool
   onAddPoint: (x: number, y: number) => void
   onMovePoint: (pointRef: string, from: { x: number; y: number }, to: { x: number; y: number }) => void
@@ -67,33 +96,48 @@ interface Props {
   onToggleNotch: (pointRef: string) => void
   onSetGrainLine: (start: FreePoint, end: FreePoint) => void
   onGradePointClick: (pointRef: string) => void
+  onAnnotatePick: (x: number, y: number) => void
+  onDeleteAnnotation: (index: number) => void
+  onMeasurePointClick: (pointRefA: string, pointRefB: string) => void
 }
 
-export function PatternCanvas({
-  points,
-  internalLines,
-  seams,
-  darts,
-  notches,
-  grainLine,
-  gradeRuleTable,
-  activeSizeStep,
-  showGradeNest,
-  tool,
-  onAddPoint,
-  onMovePoint,
-  onDeletePoint,
-  onAddLine,
-  onDeleteLine,
-  onSetSeam,
-  onAddDart,
-  onToggleNotch,
-  onSetGrainLine,
-  onGradePointClick,
-}: Props) {
+export const PatternCanvas = forwardRef<Konva.Stage, Props>(function PatternCanvas(
+  {
+    points,
+    internalLines,
+    seams,
+    darts,
+    notches,
+    grainLine,
+    gradeRuleTable,
+    activeSizeStep,
+    showGradeNest,
+    annotations,
+    measurements,
+    referenceImage,
+    referenceImageOpacity,
+    tool,
+    onAddPoint,
+    onMovePoint,
+    onDeletePoint,
+    onAddLine,
+    onDeleteLine,
+    onSetSeam,
+    onAddDart,
+    onToggleNotch,
+    onSetGrainLine,
+    onGradePointClick,
+    onAnnotatePick,
+    onDeleteAnnotation,
+    onMeasurePointClick,
+  }: Props,
+  forwardedRef,
+) {
   const stageRef = useRef<Konva.Stage>(null)
+  useImperativeHandle(forwardedRef, () => stageRef.current as Konva.Stage, [])
   const [scale, setScale] = useState(1)
   const [lineStartRef, setLineStartRef] = useState<string | null>(null)
+  const [measureStartRef, setMeasureStartRef] = useState<string | null>(null)
   const [pendingClicks, setPendingClicks] = useState<{ x: number; y: number }[]>([])
 
   // A drag gesture only commits one movePointCommand, on drag end -- not one per mousemove
@@ -160,6 +204,8 @@ export function PatternCanvas({
         { point_ref: crypto.randomUUID(), x: end.x, y: end.y },
       )
       setPendingClicks([])
+    } else if (tool === 'annotate') {
+      onAnnotatePick(x, y)
     }
   }
 
@@ -179,12 +225,11 @@ export function PatternCanvas({
     else handleFreePick(Math.round(pos.x), Math.round(pos.y))
   }
 
-  // The perimeter is a filled shape once closed, so a dart-apex or grain-line click that lands
-  // *inside* the piece (the common case -- a dart apex is usually interior, not off in empty
-  // space) hits this Line instead of empty stage, and would otherwise be silently swallowed by
-  // handleStageClick's "only empty canvas" guard above.
+  // The perimeter is a filled shape once closed, so a dart-apex, grain-line, or annotation click
+  // that lands *inside* the piece (the common case) hits this Line instead of empty stage, and
+  // would otherwise be silently swallowed by handleStageClick's "only empty canvas" guard above.
   const handlePerimeterClick = () => {
-    if (tool === 'dart' || tool === 'grain-line') pickAtPointer()
+    if (tool === 'dart' || tool === 'grain-line' || tool === 'annotate') pickAtPointer()
   }
 
   const handlePointClick = (pointRef: string, x: number, y: number) => {
@@ -201,6 +246,13 @@ export function PatternCanvas({
       handleFreePick(x, y)
     } else if (tool === 'grade') {
       onGradePointClick(pointRef)
+    } else if (tool === 'measure') {
+      if (measureStartRef === null) {
+        setMeasureStartRef(pointRef)
+        return
+      }
+      if (measureStartRef !== pointRef) onMeasurePointClick(measureStartRef, pointRef)
+      setMeasureStartRef(null)
     }
   }
 
@@ -233,6 +285,23 @@ export function PatternCanvas({
           <Line points={[-GRID_EXTENT, 0, GRID_EXTENT, 0]} stroke="#9aa1af" strokeWidth={1.5 / scale} />
           <Line points={[0, -GRID_EXTENT, 0, GRID_EXTENT]} stroke="#9aa1af" strokeWidth={1.5 / scale} />
         </Layer>
+
+        {/* Digitized-source overlay layer (pattern_design_plan.md Sec 6.1/6.5): a scanned/
+            photographed pattern shown at reduced opacity under the geometry layer so the operator
+            can trace over it with the Draw tool. Client-side only in this slice -- the image is
+            loaded via the browser's File API and never uploaded/persisted (see App.tsx); real
+            camera-capture calibration and server-side contour auto-detection are deferred. */}
+        {referenceImage && (
+          <Layer listening={false} opacity={referenceImageOpacity}>
+            <KonvaImage
+              image={referenceImage}
+              x={-referenceImage.width / 2}
+              y={-referenceImage.height / 2}
+              width={referenceImage.width}
+              height={referenceImage.height}
+            />
+          </Layer>
+        )}
 
         {/* Piece geometry layer: perimeter, internal lines, seams, darts, notches, grain line. */}
         <Layer>
@@ -365,6 +434,46 @@ export function PatternCanvas({
             />
           )}
 
+          {measurements.map((m) => {
+            const { actualMm, withinTolerance } = computeMeasurement(m, pointsByRef)
+            const a = pointsByRef.get(m.point_ref_a)
+            const b = pointsByRef.get(m.point_ref_b)
+            if (!a || !b || actualMm === null) return null
+            const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 }
+            const statusColor = withinTolerance === null ? '#0a7ea4' : withinTolerance ? '#1e7e34' : '#b3261e'
+            const statusMark = withinTolerance === null ? '' : withinTolerance ? ' ✓' : ' ✗'
+            return (
+              <Group key={m.measurement_ref} listening={false}>
+                <Line points={[a.x, a.y, b.x, b.y]} stroke={statusColor} strokeWidth={1 / scale} dash={[3 / scale, 3 / scale]} />
+                <Text
+                  x={mid.x + 4 / scale}
+                  y={mid.y - 16 / scale}
+                  text={`${m.label}: ${actualMm.toFixed(1)}mm${statusMark}`}
+                  fontSize={11 / scale}
+                  fill={statusColor}
+                />
+              </Group>
+            )
+          })}
+
+          {annotations.map((a, i) => (
+            <Group
+              key={a.annotation_ref}
+              x={a.x}
+              y={a.y}
+              onClick={() => tool === 'annotate' && onDeleteAnnotation(i)}
+              onTap={() => tool === 'annotate' && onDeleteAnnotation(i)}
+            >
+              <Text
+                text={a.text}
+                fontSize={12 / scale}
+                fill="#1a1a1e"
+                padding={3 / scale}
+                fontStyle="italic"
+              />
+            </Group>
+          ))}
+
           {pendingClicks.map((c, i) => (
             <Circle key={`pending-${i}`} x={c.x} y={c.y} radius={4 / scale} fill="#ffb84d" listening={false} />
           ))}
@@ -376,7 +485,7 @@ export function PatternCanvas({
               y={p.y}
               radius={5 / scale}
               fill={
-                p.point_ref === lineStartRef || notchedRefs.has(p.point_ref)
+                p.point_ref === lineStartRef || p.point_ref === measureStartRef || notchedRefs.has(p.point_ref)
                   ? '#ffb84d'
                   : gradedForActiveStep.has(p.point_ref)
                     ? '#8e44ad'
@@ -459,7 +568,10 @@ export function PatternCanvas({
           (activeSizeStep === null
             ? 'Set a size range and pick a step to grade first.'
             : 'Click a perimeter point to set its X/Y delta for the active step.')}
+        {tool === 'annotate' && 'Click to place a note. Click an existing note to remove it.'}
+        {tool === 'measure' &&
+          (measureStartRef ? 'Click a second point to measure to.' : 'Click a point to start a measurement.')}
       </div>
     </div>
   )
-}
+})

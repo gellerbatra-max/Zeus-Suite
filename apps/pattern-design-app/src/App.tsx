@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import type Konva from 'konva'
 import { IdentityBar } from './components/IdentityBar'
 import { PieceList } from './components/PieceList'
 import { PatternCanvas } from './components/PatternCanvas'
@@ -8,22 +9,27 @@ import { GradingTools } from './components/GradingTools'
 import { api, ApiError } from './api/client'
 import type { FolderOut, FreePoint, InternalLine, PieceGeometryDocument, PieceOut, Point } from './api/types'
 import {
+  addAnnotationCommand,
   addDartCommand,
   addLineCommand,
+  addMeasurementCommand,
   addNotchCommand,
   addPointCommand,
   deleteLineCommand,
   deletePointCommand,
   movePointCommand,
+  removeAnnotationCommand,
   removeNotchCommand,
   replaceShapeCommand,
   setGradeRuleCommand,
   setGrainLineCommand,
   setSeamCommand,
   setSizeRangeCommand,
+  transformDocumentCommand,
 } from './commands'
 import type { Command } from './commands'
 import { circlePerimeter, rectanglePerimeter } from './shapes'
+import { flipPieceHorizontal, flipPieceVertical, rotatePiece90 } from './transform'
 
 const DEFAULT_FOLDER_NAME = 'Pattern Design Pieces'
 
@@ -37,6 +43,8 @@ const TOOL_LABELS: Record<Tool, string> = {
   notch: 'Notch',
   'grain-line': 'Grain Line',
   grade: 'Grade',
+  annotate: 'Annotate',
+  measure: 'Measure',
 }
 
 function emptyGeometry(): PieceGeometryDocument {
@@ -51,6 +59,7 @@ function emptyGeometry(): PieceGeometryDocument {
     grain_line: null,
     grade_rule_table: null,
     annotations: [],
+    measurements: [],
   }
 }
 
@@ -106,6 +115,18 @@ export default function App() {
   const [pendingGradePoint, setPendingGradePoint] = useState<string | null>(null)
   const [gradeDeltaX, setGradeDeltaX] = useState('0')
   const [gradeDeltaY, setGradeDeltaY] = useState('0')
+  const [pendingAnnotation, setPendingAnnotation] = useState<{ x: number; y: number } | null>(null)
+  const [annotationText, setAnnotationText] = useState('')
+  const [pendingMeasurement, setPendingMeasurement] = useState<[string, string] | null>(null)
+  const [measurementLabel, setMeasurementLabel] = useState('')
+  const [measurementTarget, setMeasurementTarget] = useState('')
+  const [measurementTolerance, setMeasurementTolerance] = useState('2')
+  // The trace-reference image (Sec 6.5's camera/scan digitizing path) is loaded via the browser's
+  // File API and lives only in this component's memory -- never uploaded to the backend, never
+  // part of the saved geometry document. See PatternCanvas.tsx's overlay-layer comment for why.
+  const [referenceImage, setReferenceImage] = useState<HTMLImageElement | null>(null)
+  const [referenceImageOpacity, setReferenceImageOpacity] = useState(0.5)
+  const canvasStageRef = useRef<Konva.Stage | null>(null)
   const [creating, setCreating] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -198,15 +219,20 @@ export default function App() {
     setPendingGradePoint(null)
     setActiveSizeStep(null)
     setShowGradeNest(false)
+    setPendingAnnotation(null)
+    setPendingMeasurement(null)
+    setReferenceImage(null)
   }
 
-  // Switching tools mid-sequence abandons any pending seam/dart/grade pick rather than leaving
-  // stale inline-input UI referencing points from before the switch.
+  // Switching tools mid-sequence abandons any pending seam/dart/grade/annotation/measurement pick
+  // rather than leaving stale inline-input UI referencing points from before the switch.
   const changeTool = (next: Tool) => {
     setTool(next)
     setPendingSeamEdge(null)
     setPendingDart(null)
     setPendingGradePoint(null)
+    setPendingAnnotation(null)
+    setPendingMeasurement(null)
   }
 
   const createPiece = async (pieceCode: string, pieceName: string) => {
@@ -360,6 +386,86 @@ export default function App() {
     setPendingGradePoint(null)
   }
 
+  const beginAnnotation = (x: number, y: number) => {
+    setAnnotationText('')
+    setPendingAnnotation({ x, y })
+  }
+
+  const applyAnnotation = () => {
+    if (!pendingAnnotation || !annotationText.trim()) return
+    runCommand(
+      addAnnotationCommand({
+        annotation_ref: crypto.randomUUID(),
+        x: pendingAnnotation.x,
+        y: pendingAnnotation.y,
+        text: annotationText.trim(),
+      }),
+    )
+    setPendingAnnotation(null)
+  }
+
+  const deleteAnnotation = (index: number) => {
+    const annotation = geometry.annotations[index]
+    if (annotation) runCommand(removeAnnotationCommand(annotation, index))
+  }
+
+  const beginMeasurement = (pointRefA: string, pointRefB: string) => {
+    setMeasurementLabel('')
+    const a = geometry.perimeter.find((p) => p.point_ref === pointRefA)
+    const b = geometry.perimeter.find((p) => p.point_ref === pointRefB)
+    setMeasurementTarget(a && b ? String(Math.round(Math.hypot(b.x - a.x, b.y - a.y))) : '')
+    setPendingMeasurement([pointRefA, pointRefB])
+  }
+
+  const applyMeasurement = () => {
+    if (!pendingMeasurement || !measurementLabel.trim()) return
+    const targetMm = measurementTarget.trim() === '' ? null : Number(measurementTarget)
+    const toleranceMm = measurementTolerance.trim() === '' ? null : Number(measurementTolerance)
+    runCommand(
+      addMeasurementCommand({
+        measurement_ref: crypto.randomUUID(),
+        label: measurementLabel.trim(),
+        point_ref_a: pendingMeasurement[0],
+        point_ref_b: pendingMeasurement[1],
+        target_value_mm: targetMm !== null && Number.isFinite(targetMm) ? targetMm : null,
+        tolerance_mm: toleranceMm !== null && Number.isFinite(toleranceMm) ? toleranceMm : null,
+      }),
+    )
+    setPendingMeasurement(null)
+  }
+
+  const onReferenceImageSelected = (file: File | null) => {
+    if (!file) {
+      setReferenceImage(null)
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const img = new Image()
+      img.onload = () => setReferenceImage(img)
+      img.src = reader.result as string
+    }
+    reader.readAsDataURL(file)
+  }
+
+  const applyWholePieceTransform = (transform: (doc: PieceGeometryDocument) => PieceGeometryDocument, label: string) => {
+    if (geometry.perimeter.length === 0) return
+    runCommand(transformDocumentCommand(transform(geometry), geometry, label))
+  }
+
+  const openPlotPreview = () => {
+    const stage = canvasStageRef.current
+    if (!stage) return
+    const dataUrl = stage.toDataURL({ pixelRatio: 2 })
+    const win = window.open()
+    if (win) {
+      win.document.write(
+        `<title>${selectedPiece?.piece_code ?? 'Piece'} - Plot Preview</title>` +
+          `<img src="${dataUrl}" style="max-width:100%" />`,
+      )
+    }
+  }
+
   const replaceShape = (newPerimeter: Point[], label: string) => {
     if (geometry.perimeter.length > 0 && !window.confirm(`${label} will replace the current perimeter. Continue?`)) {
       return
@@ -454,7 +560,8 @@ export default function App() {
                   <span className="hint">
                     {geometry.perimeter.length} pt, {geometry.internal_lines.length} line,{' '}
                     {geometry.seams.length} seam, {geometry.darts.length} dart, {geometry.notches.length} notch,{' '}
-                    {geometry.grade_rule_table?.rules.length ?? 0} grade rule
+                    {geometry.grade_rule_table?.rules.length ?? 0} grade rule, {geometry.annotations.length} note,{' '}
+                    {geometry.measurements.length} measurement
                     {geometry.grain_line ? ', grain line set' : ''}
                   </span>
                 </div>
@@ -471,7 +578,7 @@ export default function App() {
                     ))}
                   </div>
                   <div className="tool-group">
-                    {(['seam', 'dart', 'notch', 'grain-line', 'grade'] as Tool[]).map((t) => (
+                    {(['seam', 'dart', 'notch', 'grain-line', 'grade', 'annotate', 'measure'] as Tool[]).map((t) => (
                       <button
                         key={t}
                         className={t === tool ? 'tool-button tool-button--active' : 'tool-button'}
@@ -484,6 +591,39 @@ export default function App() {
                   <button onClick={clearGrainLine} disabled={!geometry.grain_line}>
                     Clear Grain Line
                   </button>
+                </div>
+                <div className="app__toolbar">
+                  <div className="tool-group">
+                    <button onClick={() => applyWholePieceTransform(rotatePiece90, 'Rotate 90°')}>Rotate 90°</button>
+                    <button onClick={() => applyWholePieceTransform(flipPieceHorizontal, 'Flip horizontal')}>
+                      Flip H
+                    </button>
+                    <button onClick={() => applyWholePieceTransform(flipPieceVertical, 'Flip vertical')}>
+                      Flip V
+                    </button>
+                  </div>
+                  <button onClick={openPlotPreview} disabled={geometry.perimeter.length < 3}>
+                    Plot Preview
+                  </button>
+                  <span className="hint">Trace reference:</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => onReferenceImageSelected(e.target.files?.[0] ?? null)}
+                  />
+                  {referenceImage && (
+                    <>
+                      <input
+                        type="range"
+                        min="0.1"
+                        max="1"
+                        step="0.1"
+                        value={referenceImageOpacity}
+                        onChange={(e) => setReferenceImageOpacity(Number(e.target.value))}
+                      />
+                      <button onClick={() => setReferenceImage(null)}>Clear Image</button>
+                    </>
+                  )}
                 </div>
                 <GradingTools
                   key={selectedPiece.id}
@@ -541,8 +681,43 @@ export default function App() {
                     <button onClick={() => setPendingGradePoint(null)}>Cancel</button>
                   </div>
                 )}
+                {pendingAnnotation && (
+                  <div className="app__toolbar">
+                    <span className="hint">Note text:</span>
+                    <input
+                      value={annotationText}
+                      onChange={(e) => setAnnotationText(e.target.value)}
+                      autoFocus
+                      onKeyDown={(e) => e.key === 'Enter' && applyAnnotation()}
+                    />
+                    <button onClick={applyAnnotation}>Apply</button>
+                    <button onClick={() => setPendingAnnotation(null)}>Cancel</button>
+                  </div>
+                )}
+                {pendingMeasurement && (
+                  <div className="app__toolbar">
+                    <span className="hint">Label:</span>
+                    <input value={measurementLabel} onChange={(e) => setMeasurementLabel(e.target.value)} autoFocus />
+                    <span className="hint">Target:</span>
+                    <input
+                      type="number"
+                      value={measurementTarget}
+                      onChange={(e) => setMeasurementTarget(e.target.value)}
+                    />
+                    <span className="hint">± tolerance:</span>
+                    <input
+                      type="number"
+                      value={measurementTolerance}
+                      onChange={(e) => setMeasurementTolerance(e.target.value)}
+                    />
+                    <span className="hint">mm</span>
+                    <button onClick={applyMeasurement}>Apply</button>
+                    <button onClick={() => setPendingMeasurement(null)}>Cancel</button>
+                  </div>
+                )}
                 <ShapeTools onRectangle={createRectangle} onCircle={createCircle} disabled={saving} />
                 <PatternCanvas
+                  ref={canvasStageRef}
                   points={geometry.perimeter}
                   internalLines={geometry.internal_lines}
                   seams={geometry.seams}
@@ -552,6 +727,10 @@ export default function App() {
                   gradeRuleTable={geometry.grade_rule_table}
                   activeSizeStep={activeSizeStep}
                   showGradeNest={showGradeNest}
+                  annotations={geometry.annotations}
+                  measurements={geometry.measurements}
+                  referenceImage={referenceImage}
+                  referenceImageOpacity={referenceImageOpacity}
                   tool={tool}
                   onAddPoint={addPoint}
                   onMovePoint={movePoint}
@@ -563,6 +742,9 @@ export default function App() {
                   onToggleNotch={toggleNotch}
                   onSetGrainLine={setGrainLine}
                   onGradePointClick={beginGradeRule}
+                  onAnnotatePick={beginAnnotation}
+                  onDeleteAnnotation={deleteAnnotation}
+                  onMeasurePointClick={beginMeasurement}
                 />
               </>
             ) : (

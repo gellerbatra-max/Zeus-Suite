@@ -62,6 +62,24 @@ export interface GradeRuleTable {
   rules: GradeRule[]
 }
 
+export interface Annotation {
+  annotation_ref: string
+  x: number
+  y: number
+  text: string
+}
+
+// target_value_mm/tolerance_mm are the spec; the actual distance is computed live from current
+// point positions client-side (see grading.ts-style helpers in measurement.ts), never stored.
+export interface Measurement {
+  measurement_ref: string
+  label: string
+  point_ref_a: string
+  point_ref_b: string
+  target_value_mm: number | null
+  tolerance_mm: number | null
+}
+
 export interface PieceGeometryDocument {
   schema_version: number
   units: string
@@ -72,7 +90,8 @@ export interface PieceGeometryDocument {
   notches: Notch[]
   grain_line: GrainLine | null
   grade_rule_table: GradeRuleTable | null
-  annotations: unknown[]
+  annotations: Annotation[]
+  measurements: Measurement[]
 }
 
 export interface WorkflowStatusOut {
