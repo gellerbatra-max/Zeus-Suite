@@ -10,9 +10,11 @@ interface Props {
   selectedPieceId: string | null
   selectedPieceStripeMarkId: string | null
   selectedPieceCenter: { x: number; y: number } | null
+  selectedPieceWeaveLineOverride: { angleDeg: number; offset: number } | null
   onMatchingApplied: (method: string | null, ruleTableId: string | null) => void
   onAssignMark: (pieceId: string, markId: string | null) => void
   onWeaveLineChanged: (weaveLine: WeaveLine | null) => void
+  onSetWeaveLineOverride: (pieceId: string, override: { angleDeg: number; offset: number } | null) => void
 }
 
 function errMessage(err: unknown): string {
@@ -26,9 +28,11 @@ export function MatchingPanel({
   selectedPieceId,
   selectedPieceStripeMarkId,
   selectedPieceCenter,
+  selectedPieceWeaveLineOverride,
   onMatchingApplied,
   onAssignMark,
   onWeaveLineChanged,
+  onSetWeaveLineOverride,
 }: Props) {
   const [tables, setTables] = useState<MatchingRuleTableOut[]>([])
   const [table, setTable] = useState<MatchingRuleTableOut | null>(null)
@@ -50,12 +54,20 @@ export function MatchingPanel({
   const [weaveOffset, setWeaveOffset] = useState('0')
   const [weaveVisible, setWeaveVisible] = useState(true)
 
+  const [pieceWeaveAngle, setPieceWeaveAngle] = useState('0')
+  const [pieceWeaveOffset, setPieceWeaveOffset] = useState('0')
+
   useEffect(() => {
     api
       .get<{ items: MatchingRuleTableOut[] }>('/matching-rule-tables')
       .then((page) => setTables(page.items))
       .catch((err) => setError(errMessage(err)))
   }, [])
+
+  useEffect(() => {
+    setPieceWeaveAngle(String(selectedPieceWeaveLineOverride?.angleDeg ?? 0))
+    setPieceWeaveOffset(String(selectedPieceWeaveLineOverride?.offset ?? 0))
+  }, [selectedPieceId, selectedPieceWeaveLineOverride])
 
   useEffect(() => {
     if (!matchingRuleTableId) {
@@ -223,6 +235,25 @@ export function MatchingPanel({
     saveWeaveLine(angleDeg, offset, weaveVisible)
   }
 
+  const setPieceWeaveOverride = (angleDeg: number, offset: number) => {
+    if (!selectedPieceId) return
+    onSetWeaveLineOverride(selectedPieceId, { angleDeg, offset })
+    setPieceWeaveAngle(String(angleDeg))
+    setPieceWeaveOffset(String(offset))
+  }
+
+  const centerPieceWeaveOverride = () => {
+    if (!selectedPieceCenter) return
+    const angleDeg = Number(pieceWeaveAngle) || 0
+    const offset = weaveLineOffsetForPoint(angleDeg, selectedPieceCenter.x, selectedPieceCenter.y)
+    setPieceWeaveOverride(angleDeg, offset)
+  }
+
+  const clearPieceWeaveOverride = () => {
+    if (!selectedPieceId) return
+    onSetWeaveLineOverride(selectedPieceId, null)
+  }
+
   const runValidateBite = async () => {
     setError(null)
     try {
@@ -316,6 +347,34 @@ export function MatchingPanel({
             </button>
             <button disabled={!selectedPieceCenter} onClick={centerWeaveLineOnSelectedPiece}>
               Center on Selected Piece
+            </button>
+          </div>
+
+          <label className="matching-panel__sublabel">
+            Piece override {selectedPieceWeaveLineOverride ? '(active)' : '(none — uses line above)'}
+          </label>
+          <div className="matching-panel__inline-form">
+            <input
+              placeholder="Angle (deg)" value={pieceWeaveAngle} disabled={!selectedPieceId}
+              onChange={(e) => setPieceWeaveAngle(e.target.value)}
+            />
+            <input
+              placeholder="Offset" value={pieceWeaveOffset} disabled={!selectedPieceId}
+              onChange={(e) => setPieceWeaveOffset(e.target.value)}
+            />
+          </div>
+          <div className="matching-panel__inline-form">
+            <button
+              disabled={!selectedPieceId}
+              onClick={() => setPieceWeaveOverride(Number(pieceWeaveAngle) || 0, Number(pieceWeaveOffset) || 0)}
+            >
+              Set for Selected Piece
+            </button>
+            <button disabled={!selectedPieceCenter} onClick={centerPieceWeaveOverride}>
+              Center for Selected Piece
+            </button>
+            <button disabled={!selectedPieceWeaveLineOverride} onClick={clearPieceWeaveOverride}>
+              Clear Override
             </button>
           </div>
         </section>

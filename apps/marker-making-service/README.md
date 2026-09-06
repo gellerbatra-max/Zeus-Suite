@@ -100,8 +100,10 @@ Within matching (§1.4) specifically, Slice 2 built a scoped first pass — meth
 Define Stripe Marks with Next/Prev step-through, basic in-canvas guidance, and basic bite-boundary
 validation — plus the cutter stripe setup toggle, overlapped checking (frontend-only, see
 [`marker-making-app`](../marker-making-app)'s README), angled-stripe geometry in the guidance math,
-and the *global* weave line (angle/offset/visibility, `PUT .../weave-line`) added just after — and
+the *global* weave line (angle/offset/visibility, `PUT .../weave-line`), and the *per-piece* weave-
+line override (`placement_data.weave_line_angle_deg`/`weave_line_offset`, riding through the same
+opaque JSONB as `stripe_mark_id`/`cutter_stripe_needed` — no new endpoint) added just after — and
 explicitly deferred the rest: APSM/cutter-code generation, point-vs-line matching's line+label
 alternative (only the point/rule-table style is built), Define Material/Material Pattern (fabric
-reference image overlay — needs blob-storage plumbing orthogonal to geometry), Stripe-only-in-a-set,
-and the *per-piece* weave-line override (only the global line is built).
+reference image overlay — needs blob-storage plumbing orthogonal to geometry), and
+Stripe-only-in-a-set.

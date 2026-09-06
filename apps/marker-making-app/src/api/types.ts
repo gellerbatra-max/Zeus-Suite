@@ -10,6 +10,8 @@ export interface PlacementData {
   height: number
   stripe_mark_id?: string | null
   cutter_stripe_needed?: boolean
+  weave_line_angle_deg?: number | null
+  weave_line_offset?: number | null
 }
 
 export interface WorkspacePiece {

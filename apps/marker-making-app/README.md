@@ -38,8 +38,16 @@ service's README for the full architecture).
   puts the line through that piece's center at the current angle) — the canvas renders it as a long
   dashed segment (`weaveLineSegment`, centered on whichever point of the infinite line is closest to
   the canvas middle, since exact line/rectangle clipping isn't done) with an always-upright "WEAVE"
-  label, per the plan's "Font on Weaveline Upwards always." **Deferred**: per-piece weave-line
-  override ("Edit Weave Line" for a single piece, vs. this global "Edit Weave Line of All pieces").
+  label, per the plan's "Font on Weaveline Upwards always." A "Piece override" subsection (only
+  active once a piece is selected) covers "Edit Weave Line" for a single piece — its own angle/
+  offset (with its own "Center for Selected Piece"), persisted via `placement_data.weave_line_
+  angle_deg`/`weave_line_offset` the same way `stripe_mark_id` is; a piece with an override renders
+  its own shorter dashed segment (scoped to just its own bounding box, in canvas space rather than
+  inside the piece's own rotated Group, since the override angle is a marker-space direction) drawn
+  *in addition to* the global line — the two aren't mutually exclusive on canvas, they just usually
+  don't visually coincide since the override line is scoped to that piece's own bbox rather than
+  spanning the whole marker. "Clear Override" removes the piece's own line, leaving only the global
+  one wherever it happens to cross that piece.
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -103,3 +111,12 @@ Selected Piece" — confirmed the resulting offset was exactly `210` (hand calc:
 perpendicular is straight up/down, so the offset is just the center's Y) and the canvas rendered a
 horizontal dashed line through the piece's vertical center with an upright "WEAVE" label. Unchecked
 Visible and confirmed the line disappeared from the canvas.
+
+**Per-piece weave-line override**: seeded two placed pieces on one marker linked to a table with a
+global horizontal line (angle 0, offset 100) — one piece with no override (rendered the global line
+through it) and one seeded with `weave_line_angle_deg=45`/`weave_line_offset=50` in its
+`placement_data`. Confirmed the second piece rendered its own diagonal segment scoped to its own
+bounding box instead of (in addition to) the global line, selecting it showed "Piece override
+(active)" with the Angle/Offset inputs correctly prefilled `45`/`50` (distinct from the global
+line's `0`/`100` shown just above), and clicking "Clear Override" removed that piece's diagonal
+segment from the canvas immediately.

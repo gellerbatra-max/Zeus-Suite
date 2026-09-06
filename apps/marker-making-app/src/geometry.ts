@@ -29,14 +29,16 @@ export function weaveLineOffsetForPoint(angleDeg: number, x: number, y: number):
   return -x * Math.sin(angle) + y * Math.cos(angle)
 }
 
-// A long segment of the weave line, centered on whichever point of the (infinite) line is
-// closest to the canvas center -- so it visually spans the canvas without exact line/rectangle
-// clipping. `length` should be generous relative to the canvas (e.g. its diagonal * 1.5).
+// A segment of the weave line, centered on whichever point of the (infinite) line is closest to
+// (nearX, nearY) -- so it visually spans the relevant area without exact line/rectangle clipping.
+// `length` should be generous relative to that area (e.g. its diagonal * 1.5): the canvas center
+// for the rule table's global line, or a piece's own center (with its own bbox diagonal) for a
+// per-piece override.
 export function weaveLineSegment(
   angleDeg: number,
   offset: number,
-  canvasWidth: number,
-  canvasHeight: number,
+  nearX: number,
+  nearY: number,
   length: number,
 ): { x1: number; y1: number; x2: number; y2: number; midX: number; midY: number } {
   const angle = (angleDeg * Math.PI) / 180
@@ -46,9 +48,7 @@ export function weaveLineSegment(
   const py = Math.cos(angle)
   const baseX = offset * px
   const baseY = offset * py
-  const centerX = canvasWidth / 2
-  const centerY = canvasHeight / 2
-  const t = (centerX - baseX) * dx + (centerY - baseY) * dy
+  const t = (nearX - baseX) * dx + (nearY - baseY) * dy
   const midX = baseX + t * dx
   const midY = baseY + t * dy
   return {

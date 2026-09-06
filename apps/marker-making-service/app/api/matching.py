@@ -27,9 +27,15 @@ Weave-line tools: a matching_rule_table now also carries one *global* reference 
 covering "Edit Weave Line of All pieces" and "Show/hide weave line". The frontend computes
 `offset` for "center on selected piece" itself (projecting that piece's center onto the line's
 perpendicular direction) and just calls this same replace endpoint -- no separate "center" route.
-Per-piece override ("Edit Weave Line" for one piece) is deferred; "Font on Weaveline Upwards
-always" isn't a setting to expose -- the doc's "always" reads as fixed behavior, so the frontend
-just always renders the weave-line label upright rather than rotated with the line.
+"Font on Weaveline Upwards always" isn't a setting to expose -- the doc's "always" reads as fixed
+behavior, so the frontend just always renders the weave-line label upright rather than rotated
+with the line.
+
+Per-piece override ("Edit Weave Line" for a single piece) rides through placement_data
+(`weave_line_angle_deg`/`weave_line_offset`, both optional) exactly like stripe_mark_id and
+cutter_stripe_needed -- no new endpoint here either; a piece with both fields set uses its own
+line instead of the rule table's global one, and the frontend persists it via the normal
+`PUT /markers/{id}/workspace` save path.
 """
 
 import math

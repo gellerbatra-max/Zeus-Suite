@@ -284,6 +284,12 @@ input {
   letter-spacing: 0.03em;
 }
 
+.matching-panel__sublabel {
+  margin-top: 4px;
+  padding-top: 8px;
+  border-top: 1px dashed var(--border);
+}
+
 .matching-panel__inline-form {
   display: flex;
   flex-wrap: wrap;

@@ -33,6 +33,10 @@ function toCanvasPlacement(workspace: WorkspaceOut, pieceId: string): CanvasPlac
     quantity: placement?.quantity ?? 1,
     stripeMarkId: data.stripe_mark_id ?? null,
     cutterStripeNeeded: data.cutter_stripe_needed ?? true,
+    weaveLineOverride:
+      data.weave_line_angle_deg != null && data.weave_line_offset != null
+        ? { angleDeg: data.weave_line_angle_deg, offset: data.weave_line_offset }
+        : null,
   }
 }
 
@@ -101,7 +105,7 @@ export default function App() {
       {
         pieceId, pieceCode: piece.piece_code, x, y, rotationDeg: 0, flipX: false, flipY: false,
         width: piece.width, height: piece.height, sizeCode: 'M', quantity: 1, stripeMarkId: null,
-        cutterStripeNeeded: true,
+        cutterStripeNeeded: true, weaveLineOverride: null,
       },
     ])
     setSelectedPieceId(pieceId)
@@ -114,6 +118,10 @@ export default function App() {
 
   const handleAssignMark = (pieceId: string, markId: string | null) => {
     setPlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, stripeMarkId: markId } : p)))
+  }
+
+  const handleSetWeaveLineOverride = (pieceId: string, override: { angleDeg: number; offset: number } | null) => {
+    setPlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, weaveLineOverride: override } : p)))
   }
 
   const handleDragMove = (pieceId: string, x: number, y: number) => {
@@ -155,6 +163,8 @@ export default function App() {
             x: p.x, y: p.y, rotation_deg: p.rotationDeg, flip_x: p.flipX, flip_y: p.flipY,
             width: p.width, height: p.height, stripe_mark_id: p.stripeMarkId,
             cutter_stripe_needed: p.cutterStripeNeeded,
+            weave_line_angle_deg: p.weaveLineOverride?.angleDeg ?? null,
+            weave_line_offset: p.weaveLineOverride?.offset ?? null,
           },
         })),
       })
@@ -253,12 +263,16 @@ export default function App() {
             selectedPieceId={selectedPieceId}
             selectedPieceStripeMarkId={placements.find((p) => p.pieceId === selectedPieceId)?.stripeMarkId ?? null}
             selectedPieceCenter={selectedPieceCenter}
+            selectedPieceWeaveLineOverride={
+              placements.find((p) => p.pieceId === selectedPieceId)?.weaveLineOverride ?? null
+            }
             onMatchingApplied={(method, ruleTableId) => {
               setMatchingMethod(method)
               setMatchingRuleTableId(ruleTableId)
             }}
             onAssignMark={handleAssignMark}
             onWeaveLineChanged={setWeaveLine}
+            onSetWeaveLineOverride={handleSetWeaveLineOverride}
           />
 
           <NestingJobPanel markerId={workspace.marker_id} orderId={workspace.order_id} />

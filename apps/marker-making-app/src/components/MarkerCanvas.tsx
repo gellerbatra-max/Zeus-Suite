@@ -18,6 +18,7 @@ export interface CanvasPlacement {
   quantity: number
   stripeMarkId: string | null
   cutterStripeNeeded: boolean
+  weaveLineOverride: { angleDeg: number; offset: number } | null
 }
 
 interface Props {
@@ -122,7 +123,9 @@ export function MarkerCanvas({
           <Layer listening={false}>
             {(() => {
               const length = Math.sqrt(markerWidth ** 2 + markerHeight ** 2) * 1.5
-              const seg = weaveLineSegment(weaveLine.angle_deg, weaveLine.offset, markerWidth, markerHeight, length)
+              const seg = weaveLineSegment(
+                weaveLine.angle_deg, weaveLine.offset, markerWidth / 2, markerHeight / 2, length,
+              )
               return (
                 <>
                   <Line points={[seg.x1, seg.y1, seg.x2, seg.y2]} stroke="#8a6d3b" strokeWidth={1} dash={[6, 4]} />
@@ -132,6 +135,28 @@ export function MarkerCanvas({
                 </>
               )
             })()}
+          </Layer>
+        )}
+        {placements.some((p) => p.weaveLineOverride) && (
+          // Per-piece weave-line override (Sec 1.4: "Edit Weave Line" for a single piece) --
+          // a shorter segment scoped to just that piece's own bounding box, drawn in canvas
+          // space (not inside the piece's own rotated Group) since the override angle is a
+          // marker-space direction, independent of how the piece itself is rotated/flipped.
+          <Layer listening={false}>
+            {placements.map((p) => {
+              if (!p.weaveLineOverride) return null
+              const centerX = p.x + p.width / 2
+              const centerY = p.y + p.height / 2
+              const length = Math.sqrt(p.width ** 2 + p.height ** 2) * 1.2
+              const seg = weaveLineSegment(p.weaveLineOverride.angleDeg, p.weaveLineOverride.offset, centerX, centerY, length)
+              return (
+                <Line
+                  key={p.pieceId}
+                  points={[seg.x1, seg.y1, seg.x2, seg.y2]}
+                  stroke="#8a6d3b" strokeWidth={1.5} dash={[3, 3]}
+                />
+              )
+            })}
           </Layer>
         )}
         {guidance && guidance.result.targets.length > 0 && (

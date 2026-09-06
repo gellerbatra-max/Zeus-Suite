@@ -13,6 +13,8 @@ class PlacementData(BaseModel):
     height: float
     stripe_mark_id: str | None = None
     cutter_stripe_needed: bool = True
+    weave_line_angle_deg: float | None = None
+    weave_line_offset: float | None = None
 
 
 class PlacementIn(BaseModel):

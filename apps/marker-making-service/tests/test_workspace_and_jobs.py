@@ -67,7 +67,7 @@ def test_workspace_load_save_and_status_transition():
                 "piece_id": piece_b["id"], "size_code": "M", "quantity": 1,
                 "placement_data": {
                     "x": 100, "y": 10, "rotation_deg": 90, "flip_x": True, "width": 60, "height": 90,
-                    "cutter_stripe_needed": False,
+                    "cutter_stripe_needed": False, "weave_line_angle_deg": 15.0, "weave_line_offset": 42.5,
                 },
             },
         ]
@@ -88,6 +88,12 @@ def test_workspace_load_save_and_status_transition():
     assert placement_by_piece[piece_b["id"]]["placement_data"]["rotation_deg"] == 90
     assert placement_by_piece[piece_b["id"]]["placement_data"]["flip_x"] is True
     assert placement_by_piece[piece_b["id"]]["placement_data"]["cutter_stripe_needed"] is False
+    # Per-piece weave-line override (Sec 1.4: "Edit Weave Line" for a single piece) rides through
+    # placement_data the same way -- piece_a has neither field (falls back to the rule table's
+    # global line), piece_b overrides both.
+    assert placement_by_piece[piece_a["id"]]["placement_data"].get("weave_line_angle_deg") is None
+    assert placement_by_piece[piece_b["id"]]["placement_data"]["weave_line_angle_deg"] == 15.0
+    assert placement_by_piece[piece_b["id"]]["placement_data"]["weave_line_offset"] == 42.5
 
     # Reload independently -- confirms this actually persisted through the real platform API,
     # not just an in-memory echo of the request.
