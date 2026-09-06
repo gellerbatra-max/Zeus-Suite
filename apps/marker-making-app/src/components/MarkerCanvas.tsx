@@ -1,8 +1,29 @@
 import type { DragEvent } from 'react'
-import { Arrow, Circle, Group, Layer, Line, Rect, Stage, Text } from 'react-konva'
+import { useEffect, useState } from 'react'
+import { Arrow, Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text } from 'react-konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
 import type { MatchGuidanceOut, WeaveLine } from '../api/types'
 import { boundingBoxesOverlap, weaveLineSegment } from '../geometry'
+
+// Define Material / Material Pattern (Sec 1.4, "Show Marker's Pattern"): loads the fabric
+// reference image as a plain HTMLImageElement for Konva's <Image> to draw, since this project has
+// no image-loading hook dependency (e.g. `use-image`) -- this is the minimal equivalent.
+function useHtmlImage(url: string | null | undefined): HTMLImageElement | null {
+  const [image, setImage] = useState<HTMLImageElement | null>(null)
+  useEffect(() => {
+    if (!url) {
+      setImage(null)
+      return
+    }
+    const img = new window.Image()
+    img.onload = () => setImage(img)
+    img.src = url
+    return () => {
+      img.onload = null
+    }
+  }, [url])
+  return image
+}
 
 export interface CanvasPlacement {
   pieceId: string
@@ -32,6 +53,7 @@ interface Props {
   selectedPieceId: string | null
   guidance?: { pieceId: string; result: MatchGuidanceOut } | null
   weaveLine?: WeaveLine | null
+  materialPatternUrl?: string | null
 }
 
 export function MarkerCanvas({
@@ -45,7 +67,9 @@ export function MarkerCanvas({
   selectedPieceId,
   guidance,
   weaveLine,
+  materialPatternUrl,
 }: Props) {
+  const materialImage = useHtmlImage(materialPatternUrl)
   const overlapping = new Set<string>()
   for (let i = 0; i < placements.length; i++) {
     for (let j = i + 1; j < placements.length; j++) {
@@ -72,6 +96,12 @@ export function MarkerCanvas({
     <div className="marker-canvas" onDragOver={(e) => e.preventDefault()} onDrop={handleDrop}>
       <Stage width={markerWidth} height={markerHeight} onMouseDown={handleStageMouseDown}>
         <Layer>
+          {materialImage && (
+            <KonvaImage
+              image={materialImage} x={0} y={0} width={markerWidth} height={markerHeight}
+              opacity={0.6} listening={false}
+            />
+          )}
           <Rect x={0} y={0} width={markerWidth} height={markerHeight} stroke="#333333" strokeWidth={2} />
           {placements.map((p) => (
             <Group

@@ -47,7 +47,15 @@ service's README for the full architecture).
   *in addition to* the global line — the two aren't mutually exclusive on canvas, they just usually
   don't visually coincide since the override line is scoped to that piece's own bbox rather than
   spanning the whole marker. "Clear Override" removes the piece's own line, leaving only the global
-  one wherever it happens to cross that piece.
+  one wherever it happens to cross that piece. **Define Material / Material Pattern** (§1.4,
+  "Show Marker's Pattern") — upload a fabric reference image (name + file picker), computing its
+  SHA-256 checksum in-browser (`crypto.subtle.digest`) before completing the upload; a 40×40
+  thumbnail (fetched via a fresh SAS download URL) plus Hide/Show and Delete buttons appear once
+  one exists. When visible, the canvas renders it as a semi-transparent (`opacity=0.6`) full-marker
+  background behind everything else, loaded through a small custom `useHtmlImage` hook in
+  `MarkerCanvas.tsx` (this project has no `use-image`-style dependency). **Deferred**: "Show
+  Piece's Pattern" (clipping the image to an individual piece's own silhouette) — there's no real
+  piece geometry to clip against yet (only the synthetic placeholder rectangles).
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -120,3 +128,14 @@ bounding box instead of (in addition to) the global line, selecting it showed "P
 (active)" with the Angle/Offset inputs correctly prefilled `45`/`50` (distinct from the global
 line's `0`/`100` shown just above), and clicking "Clear Override" removed that piece's diagonal
 segment from the canvas immediately.
+
+**Define Material / Material Pattern**: the actual file-picker upload step can't be driven through
+this project's browser-automation tooling (native OS file dialogs are outside its reach — a
+browser-security limitation, not a product one), so the full begin-upload → PUT bytes → complete
+sequence is instead covered by `marker-making-service`'s automated test against real Azurite. What
+*was* verified live in the browser: seeded a real material pattern via the same three HTTP calls
+the UI makes, reloaded the marker, and confirmed (a) the canvas rendered the image as a semi-
+transparent full-marker background, (b) the thumbnail `<img>` element had `complete: true` and
+`naturalWidth/naturalHeight: 1×1` (matching the 1×1 test PNG) after loading from a real Azurite SAS
+URL, and (c) clicking "Hide on Canvas" removed the background immediately, confirming the
+visibility toggle reaches the canvas layer correctly.

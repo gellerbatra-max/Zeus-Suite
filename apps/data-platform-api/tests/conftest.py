@@ -13,7 +13,7 @@ from app.storage import ensure_container
 # request; tests provision them once per session for the same reason, rather than having request
 # handlers create containers on demand (which Section 3.1 doesn't specify and would be wasteful
 # per-request overhead in production).
-STORAGE_CONTAINERS = ["dmp-pieces", "dmp-markers", "dmp-nesting-jobs", "dmp-reports", "dmp-audit-archive"]
+STORAGE_CONTAINERS = ["dmp-pieces", "dmp-markers", "dmp-nesting-jobs", "dmp-reports", "dmp-audit-archive", "dmp-matching"]
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 

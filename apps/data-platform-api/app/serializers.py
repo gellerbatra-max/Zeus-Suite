@@ -93,6 +93,7 @@ def matching_rule_table_out(session: Session, row: MatchingRuleTable) -> schemas
         stripe_definitions_json=row.stripe_definitions_json,
         stripe_marks_json=row.stripe_marks_json,
         weave_line_json=row.weave_line_json,
+        material_pattern_json=row.material_pattern_json,
         version=row.version,
         created_at=row.created_at,
         created_by=row.created_by,

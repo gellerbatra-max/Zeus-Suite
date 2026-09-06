@@ -53,6 +53,7 @@ export default function App() {
   const [matchingRuleTableId, setMatchingRuleTableId] = useState<string | null>(null)
   const [guidance, setGuidance] = useState<{ pieceId: string; result: MatchGuidanceOut } | null>(null)
   const [weaveLine, setWeaveLine] = useState<WeaveLine | null>(null)
+  const [materialPattern, setMaterialPattern] = useState<{ visible: boolean; downloadUrl: string } | null>(null)
   const lastGuidanceAt = useRef(0)
 
   const openMarker = async () => {
@@ -70,6 +71,7 @@ export default function App() {
       setMatchingRuleTableId(ws.matching_rule_table_id)
       setGuidance(null)
       setWeaveLine(null)
+      setMaterialPattern(null)
     } catch (err) {
       setWorkspace(null)
       setError(err instanceof ApiError ? err.message : String(err))
@@ -222,6 +224,7 @@ export default function App() {
               selectedPieceId={selectedPieceId}
               guidance={guidance}
               weaveLine={weaveLine}
+              materialPatternUrl={materialPattern?.visible ? materialPattern.downloadUrl : null}
             />
             {guidance?.result.message && <p className="matching-warning">{guidance.result.message}</p>}
             {selectedOverlaps.length > 0 && (
@@ -273,6 +276,7 @@ export default function App() {
             onAssignMark={handleAssignMark}
             onWeaveLineChanged={setWeaveLine}
             onSetWeaveLineOverride={handleSetWeaveLineOverride}
+            onMaterialPatternChanged={setMaterialPattern}
           />
 
           <NestingJobPanel markerId={workspace.marker_id} orderId={workspace.order_id} />

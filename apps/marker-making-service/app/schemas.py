@@ -151,6 +151,11 @@ class WeaveLineIn(BaseModel):
     visible: bool = True
 
 
+class MaterialPatternInfo(BaseModel):
+    name: str | None = None
+    visible: bool = True
+
+
 class MatchingRuleTableOut(BaseModel):
     id: str
     name: str
@@ -161,6 +166,7 @@ class MatchingRuleTableOut(BaseModel):
     stripe_definitions: list[StripeDefinitionOut]
     stripe_marks: list[StripeMarkOut]
     weave_line: WeaveLineIn | None
+    material_pattern: MaterialPatternInfo | None
     version: int
 
 
@@ -202,3 +208,34 @@ class ValidateBiteOut(BaseModel):
     bite_length: float
     ok: bool
     violations: list[BiteViolation]
+
+
+# -- Define Material / Material Pattern (marker_making_production_plan.md Sec 1.4, new) ----------
+
+
+class MaterialPatternBeginRequest(BaseModel):
+    file_format: str = "png"
+    size_bytes: int
+
+
+class MaterialPatternBeginResponse(BaseModel):
+    upload_url: str
+    storage_container: str
+    storage_key: str
+    expires_at: str
+
+
+class MaterialPatternCompleteRequest(BaseModel):
+    storage_container: str
+    storage_key: str
+    checksum_sha256: str
+    material_name: str | None = None
+
+
+class MaterialPatternVisibilityRequest(BaseModel):
+    visible: bool = True
+
+
+class MaterialPatternDownloadUrlOut(BaseModel):
+    download_url: str
+    expires_at: str

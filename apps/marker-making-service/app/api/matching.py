@@ -36,6 +36,14 @@ Per-piece override ("Edit Weave Line" for a single piece) rides through placemen
 cutter_stripe_needed -- no new endpoint here either; a piece with both fields set uses its own
 line instead of the rule table's global one, and the frontend persists it via the normal
 `PUT /markers/{id}/workspace` save path.
+
+Define Material / Material Pattern: a fabric reference image on the rule table, uploaded via the
+platform's SAS-URL begin-upload/complete flow (see data-platform-api's app/api/matching.py
+docstring) -- this service just proxies the three-call sequence (begin-upload, complete,
+download-url) plus a visibility toggle and delete, never touching the image bytes itself. Scoped
+to "Show Marker's Pattern" (one image as a marker-wide canvas background) -- "Show Piece's Pattern"
+(per-piece image clipping) is deferred, since there's no real piece silhouette to clip against yet
+(Pattern Design doesn't exist -- see the synthetic-geometry note elsewhere in this service).
 """
 
 import math
@@ -54,6 +62,12 @@ from app.schemas import (
     MatchingRuleTableCreate,
     MatchingRuleTableOut,
     MatchingRuleTablePatch,
+    MaterialPatternBeginRequest,
+    MaterialPatternBeginResponse,
+    MaterialPatternCompleteRequest,
+    MaterialPatternDownloadUrlOut,
+    MaterialPatternInfo,
+    MaterialPatternVisibilityRequest,
     OffsetsIn,
     StripeDefinitionIn,
     StripeDefinitionOut,
@@ -75,6 +89,7 @@ SNAP_TOLERANCE = 1.0
 def _shape(raw: dict) -> MatchingRuleTableOut:
     offsets = raw.get("offsets_json") or {}
     weave_line = raw.get("weave_line_json")
+    material_pattern = raw.get("material_pattern_json")
     return MatchingRuleTableOut(
         id=raw["id"],
         name=raw["name"],
@@ -85,6 +100,10 @@ def _shape(raw: dict) -> MatchingRuleTableOut:
         stripe_definitions=[StripeDefinitionOut(**d) for d in raw.get("stripe_definitions_json", [])],
         stripe_marks=[StripeMarkOut(**m) for m in raw.get("stripe_marks_json", [])],
         weave_line=WeaveLineIn(**weave_line) if weave_line else None,
+        material_pattern=(
+            MaterialPatternInfo(name=material_pattern.get("name"), visible=material_pattern.get("visible", True))
+            if material_pattern else None
+        ),
         version=raw["version"],
     )
 
@@ -152,8 +171,9 @@ def replace_offsets(table_id: str, body: OffsetsIn, client: PlatformClient = Dep
 
 
 # -- Weave-line tools -----------------------------------------------------------------------------
-# Scoped to the global weave line ("Edit Weave Line of All pieces" + "Show/hide weave line").
-# Per-piece override ("Edit Weave Line" for a single piece) is deferred -- see module docstring.
+# The global weave line ("Edit Weave Line of All pieces" + "Show/hide weave line"); the per-piece
+# override ("Edit Weave Line" for a single piece) rides through placement_data instead -- see
+# module docstring.
 
 
 @router.put("/matching-rule-tables/{table_id}/weave-line", response_model=MatchingRuleTableOut)
@@ -163,6 +183,62 @@ def replace_weave_line(table_id: str, body: WeaveLineIn, client: PlatformClient 
         f"/matching-rule-tables/{table_id}/weave-line",
         json=body.model_dump(),
         headers={"If-Match-Version": str(current["version"])},
+    )
+    return _shape(raw)
+
+
+# -- Define Material / Material Pattern ---------------------------------------------------------
+
+
+@router.post(
+    "/matching-rule-tables/{table_id}/material-pattern/begin-upload", response_model=MaterialPatternBeginResponse
+)
+def begin_material_pattern_upload(
+    table_id: str, body: MaterialPatternBeginRequest, client: PlatformClient = Depends(get_platform_client)
+):
+    return client.post(f"/matching-rule-tables/{table_id}/material-pattern/begin-upload", json=body.model_dump())
+
+
+@router.post("/matching-rule-tables/{table_id}/material-pattern/complete", response_model=MatchingRuleTableOut)
+def complete_material_pattern_upload(
+    table_id: str, body: MaterialPatternCompleteRequest, client: PlatformClient = Depends(get_platform_client)
+):
+    current = _get_raw_table(client, table_id)
+    raw = client.post(
+        f"/matching-rule-tables/{table_id}/material-pattern/complete",
+        json=body.model_dump(),
+        headers={"If-Match-Version": str(current["version"])},
+    )
+    return _shape(raw)
+
+
+@router.put(
+    "/matching-rule-tables/{table_id}/material-pattern/visibility", response_model=MatchingRuleTableOut
+)
+def set_material_pattern_visibility(
+    table_id: str, body: MaterialPatternVisibilityRequest, client: PlatformClient = Depends(get_platform_client)
+):
+    current = _get_raw_table(client, table_id)
+    raw = client.put(
+        f"/matching-rule-tables/{table_id}/material-pattern/visibility",
+        json=body.model_dump(),
+        headers={"If-Match-Version": str(current["version"])},
+    )
+    return _shape(raw)
+
+
+@router.get(
+    "/matching-rule-tables/{table_id}/material-pattern/download-url", response_model=MaterialPatternDownloadUrlOut
+)
+def get_material_pattern_download_url(table_id: str, client: PlatformClient = Depends(get_platform_client)):
+    return client.get(f"/matching-rule-tables/{table_id}/material-pattern/download-url")
+
+
+@router.delete("/matching-rule-tables/{table_id}/material-pattern", response_model=MatchingRuleTableOut)
+def delete_material_pattern(table_id: str, client: PlatformClient = Depends(get_platform_client)):
+    current = _get_raw_table(client, table_id)
+    raw = client.delete(
+        f"/matching-rule-tables/{table_id}/material-pattern", headers={"If-Match-Version": str(current["version"])}
     )
     return _shape(raw)
 

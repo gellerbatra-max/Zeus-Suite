@@ -246,6 +246,7 @@ class MatchingRuleTableOut(BaseModel):
     stripe_definitions_json: list[dict[str, Any]]
     stripe_marks_json: list[dict[str, Any]]
     weave_line_json: dict[str, Any] | None
+    material_pattern_json: dict[str, Any] | None
     version: int
     created_at: datetime
     created_by: uuid.UUID
@@ -254,6 +255,29 @@ class MatchingRuleTableOut(BaseModel):
 class WeaveLineReplace(BaseModel):
     angle_deg: float = 0.0
     offset: float = 0.0
+    visible: bool = True
+
+
+class MaterialPatternBeginRequest(BaseModel):
+    file_format: str = "png"
+    size_bytes: int
+
+
+class MaterialPatternBeginResponse(BaseModel):
+    upload_url: str
+    storage_container: str
+    storage_key: str
+    expires_at: datetime
+
+
+class MaterialPatternCompleteRequest(BaseModel):
+    storage_container: str
+    storage_key: str
+    checksum_sha256: str
+    material_name: str | None = None
+
+
+class MaterialPatternVisibility(BaseModel):
     visible: bool = True
 
 

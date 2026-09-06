@@ -85,6 +85,23 @@ export interface WeaveLine {
   visible: boolean
 }
 
+export interface MaterialPatternInfo {
+  name: string | null
+  visible: boolean
+}
+
+export interface MaterialPatternBeginResponse {
+  upload_url: string
+  storage_container: string
+  storage_key: string
+  expires_at: string
+}
+
+export interface MaterialPatternDownloadUrlOut {
+  download_url: string
+  expires_at: string
+}
+
 export interface MatchingRuleTableOut {
   id: string
   name: string
@@ -95,6 +112,7 @@ export interface MatchingRuleTableOut {
   stripe_definitions: StripeDefinition[]
   stripe_marks: StripeMark[]
   weave_line: WeaveLine | null
+  material_pattern: MaterialPatternInfo | null
   version: number
 }
 

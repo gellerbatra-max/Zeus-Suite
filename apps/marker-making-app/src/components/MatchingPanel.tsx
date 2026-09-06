@@ -1,6 +1,13 @@
 import { useEffect, useState } from 'react'
 import { api, ApiError } from '../api/client'
-import type { MatchingRuleTableOut, StripeDefinition, ValidateBiteOut, WeaveLine } from '../api/types'
+import type {
+  MaterialPatternBeginResponse,
+  MaterialPatternDownloadUrlOut,
+  MatchingRuleTableOut,
+  StripeDefinition,
+  ValidateBiteOut,
+  WeaveLine,
+} from '../api/types'
 import { weaveLineOffsetForPoint } from '../geometry'
 
 interface Props {
@@ -15,10 +22,23 @@ interface Props {
   onAssignMark: (pieceId: string, markId: string | null) => void
   onWeaveLineChanged: (weaveLine: WeaveLine | null) => void
   onSetWeaveLineOverride: (pieceId: string, override: { angleDeg: number; offset: number } | null) => void
+  onMaterialPatternChanged: (pattern: { visible: boolean; downloadUrl: string } | null) => void
 }
 
 function errMessage(err: unknown): string {
   return err instanceof ApiError ? err.message : String(err)
+}
+
+async function sha256Hex(buffer: ArrayBuffer): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', buffer)
+  return Array.from(new Uint8Array(digest)).map((b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+function fileFormatFor(file: File): string {
+  const ext = file.name.split('.').pop()?.toLowerCase()
+  if (ext === 'jpg' || ext === 'jpeg') return 'jpg'
+  if (ext === 'webp') return 'webp'
+  return 'png'
 }
 
 export function MatchingPanel({
@@ -33,6 +53,7 @@ export function MatchingPanel({
   onAssignMark,
   onWeaveLineChanged,
   onSetWeaveLineOverride,
+  onMaterialPatternChanged,
 }: Props) {
   const [tables, setTables] = useState<MatchingRuleTableOut[]>([])
   const [table, setTable] = useState<MatchingRuleTableOut | null>(null)
@@ -56,6 +77,11 @@ export function MatchingPanel({
 
   const [pieceWeaveAngle, setPieceWeaveAngle] = useState('0')
   const [pieceWeaveOffset, setPieceWeaveOffset] = useState('0')
+
+  const [materialName, setMaterialName] = useState('')
+  const [materialFile, setMaterialFile] = useState<File | null>(null)
+  const [materialUploading, setMaterialUploading] = useState(false)
+  const [materialThumbUrl, setMaterialThumbUrl] = useState<string | null>(null)
 
   useEffect(() => {
     api
@@ -96,6 +122,21 @@ export function MatchingPanel({
     setTables((prev) => (prev.some((x) => x.id === t.id) ? prev.map((x) => (x.id === t.id ? t : x)) : [...prev, t]))
     onWeaveLineChanged(t.weave_line)
   }
+
+  useEffect(() => {
+    if (!table?.material_pattern) {
+      setMaterialThumbUrl(null)
+      onMaterialPatternChanged(null)
+      return
+    }
+    api
+      .get<MaterialPatternDownloadUrlOut>(`/matching-rule-tables/${table.id}/material-pattern/download-url`)
+      .then(({ download_url }) => {
+        setMaterialThumbUrl(download_url)
+        onMaterialPatternChanged({ visible: table.material_pattern!.visible, downloadUrl: download_url })
+      })
+      .catch((err) => setError(errMessage(err)))
+  }, [table?.id, table?.material_pattern?.name, table?.material_pattern?.visible])
 
   const createTable = async () => {
     if (!newTableName.trim()) return
@@ -254,6 +295,62 @@ export function MatchingPanel({
     onSetWeaveLineOverride(selectedPieceId, null)
   }
 
+  const uploadMaterialPattern = async () => {
+    if (!table || !materialFile) return
+    setError(null)
+    setMaterialUploading(true)
+    try {
+      const begin = await api.post<MaterialPatternBeginResponse>(
+        `/matching-rule-tables/${table.id}/material-pattern/begin-upload`,
+        { file_format: fileFormatFor(materialFile), size_bytes: materialFile.size },
+      )
+      const bytes = await materialFile.arrayBuffer()
+      const uploadResp = await fetch(begin.upload_url, {
+        method: 'PUT',
+        headers: { 'x-ms-blob-type': 'BlockBlob', 'Content-Type': materialFile.type || 'application/octet-stream' },
+        body: bytes,
+      })
+      if (!uploadResp.ok) throw new Error(`Blob upload failed with status ${uploadResp.status}`)
+      const checksum = await sha256Hex(bytes)
+      const updated = await api.post<MatchingRuleTableOut>(`/matching-rule-tables/${table.id}/material-pattern/complete`, {
+        storage_container: begin.storage_container,
+        storage_key: begin.storage_key,
+        checksum_sha256: checksum,
+        material_name: materialName.trim() || null,
+      })
+      refreshTable(updated)
+      setMaterialFile(null)
+    } catch (err) {
+      setError(errMessage(err))
+    } finally {
+      setMaterialUploading(false)
+    }
+  }
+
+  const toggleMaterialPatternVisibility = async () => {
+    if (!table?.material_pattern) return
+    setError(null)
+    try {
+      const updated = await api.put<MatchingRuleTableOut>(`/matching-rule-tables/${table.id}/material-pattern/visibility`, {
+        visible: !table.material_pattern.visible,
+      })
+      refreshTable(updated)
+    } catch (err) {
+      setError(errMessage(err))
+    }
+  }
+
+  const deleteMaterialPattern = async () => {
+    if (!table) return
+    setError(null)
+    try {
+      const updated = await api.delete<MatchingRuleTableOut>(`/matching-rule-tables/${table.id}/material-pattern`)
+      refreshTable(updated)
+    } catch (err) {
+      setError(errMessage(err))
+    }
+  }
+
   const runValidateBite = async () => {
     setError(null)
     try {
@@ -377,6 +474,40 @@ export function MatchingPanel({
               Clear Override
             </button>
           </div>
+        </section>
+      )}
+
+      {table && (
+        <section className="matching-panel__section">
+          <label>Material pattern</label>
+          {table.material_pattern ? (
+            <>
+              <div className="matching-panel__material-info">
+                {materialThumbUrl && (
+                  <img className="matching-panel__material-thumb" src={materialThumbUrl} alt={table.material_pattern.name ?? 'Material pattern'} />
+                )}
+                <span>{table.material_pattern.name ?? '(unnamed)'}</span>
+              </div>
+              <div className="matching-panel__inline-form">
+                <button onClick={toggleMaterialPatternVisibility}>
+                  {table.material_pattern.visible ? 'Hide on Canvas' : 'Show on Canvas'}
+                </button>
+                <button onClick={deleteMaterialPattern}>Delete Pattern</button>
+              </div>
+            </>
+          ) : (
+            <p className="hint">No fabric reference image uploaded yet.</p>
+          )}
+          <div className="matching-panel__inline-form">
+            <input placeholder="Material name" value={materialName} onChange={(e) => setMaterialName(e.target.value)} />
+            <input
+              type="file" accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => setMaterialFile(e.target.files?.[0] ?? null)}
+            />
+          </div>
+          <button disabled={!materialFile || materialUploading} onClick={uploadMaterialPattern}>
+            {materialUploading ? 'Uploading…' : 'Upload Pattern'}
+          </button>
         </section>
       )}
 

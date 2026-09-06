@@ -69,6 +69,12 @@ toggle (below) the same way as a `cutter_stripe_needed` key — neither needed a
     (default `True`, "still needs auto-cutter stripe matching") rides through the normal
     `PUT /markers/{id}/workspace` save path exactly like `stripe_mark_id`, so the cut file can later
     read it straight off `placement_data` without a second lookup.
+  - **Define Material / Material Pattern** — five thin proxy endpoints
+    (`begin-upload`/`complete`/`visibility`/`download-url`/`DELETE .../material-pattern`) mirroring
+    the platform's SAS-URL flow already used for piece/marker versions; this service never touches
+    the image bytes. Scoped to "Show Marker's Pattern" (one image as a marker-wide canvas
+    background) — "Show Piece's Pattern" (per-piece clipping) is deferred below, since there's no
+    real piece silhouette to clip against yet.
 - `app/synthetic_geometry.py` — deterministic placeholder piece dimensions (Pattern Design doesn't
   exist yet, so there's no real silhouette geometry to nest).
 
@@ -100,10 +106,10 @@ Within matching (§1.4) specifically, Slice 2 built a scoped first pass — meth
 Define Stripe Marks with Next/Prev step-through, basic in-canvas guidance, and basic bite-boundary
 validation — plus the cutter stripe setup toggle, overlapped checking (frontend-only, see
 [`marker-making-app`](../marker-making-app)'s README), angled-stripe geometry in the guidance math,
-the *global* weave line (angle/offset/visibility, `PUT .../weave-line`), and the *per-piece* weave-
+the *global* weave line (angle/offset/visibility, `PUT .../weave-line`), the *per-piece* weave-
 line override (`placement_data.weave_line_angle_deg`/`weave_line_offset`, riding through the same
-opaque JSONB as `stripe_mark_id`/`cutter_stripe_needed` — no new endpoint) added just after — and
+opaque JSONB as `stripe_mark_id`/`cutter_stripe_needed` — no new endpoint), and Define Material/
+Material Pattern (fabric reference image, "Show Marker's Pattern" only) added just after — and
 explicitly deferred the rest: APSM/cutter-code generation, point-vs-line matching's line+label
-alternative (only the point/rule-table style is built), Define Material/Material Pattern (fabric
-reference image overlay — needs blob-storage plumbing orthogonal to geometry), and
-Stripe-only-in-a-set.
+alternative (only the point/rule-table style is built), "Show Piece's Pattern" (per-piece image
+clipping — no real piece silhouette exists yet to clip against), and Stripe-only-in-a-set.

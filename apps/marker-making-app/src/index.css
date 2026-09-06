@@ -375,3 +375,18 @@ input {
   color: #1e7e34;
   font-size: 0.8rem;
 }
+
+.matching-panel__material-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.8rem;
+}
+
+.matching-panel__material-thumb {
+  width: 40px;
+  height: 40px;
+  object-fit: cover;
+  border: 1px solid var(--border);
+  border-radius: 3px;
+}

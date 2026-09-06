@@ -2,6 +2,9 @@
 full-replace endpoints, marker linkage, and the permission/audit/optimistic-concurrency contracts
 every other Section 4 resource already has to honor."""
 
+import hashlib
+
+from azure.storage.blob import BlobClient
 from fastapi.testclient import TestClient
 
 from app.main import app
@@ -195,3 +198,75 @@ def test_viewer_role_read_only(db_session):
 
     resp = client.get("/matching-rule-tables", headers=VIEWER_HEADERS)
     assert resp.status_code == 200, resp.text
+
+
+def test_material_pattern_upload_complete_visibility_and_delete(db_session):
+    _bootstrap_admin(db_session)
+    table = client.post(
+        "/matching-rule-tables", json={"name": "Material Table", "method": "standard"}, headers=HEADERS
+    ).json()
+    assert table["material_pattern_json"] is None
+
+    resp = client.post(
+        f"/matching-rule-tables/{table['id']}/material-pattern/begin-upload",
+        json={"file_format": "png", "size_bytes": 11}, headers=HEADERS,
+    )
+    assert resp.status_code == 200, resp.text
+    begin = resp.json()
+    assert begin["storage_container"] == "dmp-matching"
+    assert begin["storage_key"].endswith(f"/{table['id']}/material-pattern.png")
+
+    payload = b"fake-pattern"
+    BlobClient.from_blob_url(begin["upload_url"]).upload_blob(payload, overwrite=True)
+    checksum = hashlib.sha256(payload).hexdigest()
+
+    resp = client.post(
+        f"/matching-rule-tables/{table['id']}/material-pattern/complete",
+        json={
+            "storage_container": begin["storage_container"], "storage_key": begin["storage_key"],
+            "checksum_sha256": checksum, "material_name": "Navy Plaid",
+        },
+        headers={**HEADERS, "If-Match-Version": str(table["version"])},
+    )
+    assert resp.status_code == 200, resp.text
+    table = resp.json()
+    assert table["material_pattern_json"]["name"] == "Navy Plaid"
+    assert table["material_pattern_json"]["visible"] is True
+    assert table["version"] == 2
+
+    resp = client.get(f"/matching-rule-tables/{table['id']}/material-pattern/download-url", headers=HEADERS)
+    assert resp.status_code == 200, resp.text
+    download_url = resp.json()["download_url"]
+    downloaded = BlobClient.from_blob_url(download_url).download_blob().readall()
+    assert downloaded == payload
+
+    resp = client.put(
+        f"/matching-rule-tables/{table['id']}/material-pattern/visibility",
+        json={"visible": False}, headers={**HEADERS, "If-Match-Version": str(table["version"])},
+    )
+    assert resp.status_code == 200, resp.text
+    table = resp.json()
+    assert table["material_pattern_json"]["visible"] is False
+    assert table["material_pattern_json"]["name"] == "Navy Plaid"  # untouched by the visibility-only call
+
+    resp = client.delete(
+        f"/matching-rule-tables/{table['id']}/material-pattern",
+        headers={**HEADERS, "If-Match-Version": str(table["version"])},
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["material_pattern_json"] is None
+
+    resp = client.get(f"/matching-rule-tables/{table['id']}/material-pattern/download-url", headers=HEADERS)
+    assert resp.status_code == 404
+
+
+def test_material_pattern_visibility_requires_existing_pattern(db_session):
+    _bootstrap_admin(db_session)
+    table = client.post(
+        "/matching-rule-tables", json={"name": "No Pattern Table", "method": "standard"}, headers=HEADERS
+    ).json()
+    resp = client.put(
+        f"/matching-rule-tables/{table['id']}/material-pattern/visibility",
+        json={"visible": False}, headers={**HEADERS, "If-Match-Version": str(table["version"])},
+    )
+    assert resp.status_code == 409

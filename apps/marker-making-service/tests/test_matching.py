@@ -2,9 +2,11 @@
 method application to a marker, in-canvas guidance math, and bite-boundary validation -- all
 proxying through the real data-platform-api subprocess (see conftest.py)."""
 
+import hashlib
 import math
 
 import pytest
+from azure.storage.blob import BlobClient
 from fastapi.testclient import TestClient
 from helpers import grant_role, platform_client, seed_nestable_piece, unique_suffix
 
@@ -346,3 +348,51 @@ def test_validate_bite_detects_and_clears_violation():
     resp = client.get(f"/markers/{marker['id']}/matching/validate-bite", params={"bite_length": 20}, headers=headers)
     assert resp.json()["ok"] is True
     assert resp.json()["violations"] == []
+
+
+def test_material_pattern_upload_complete_visibility_and_delete():
+    unique = unique_suffix()
+    headers, _folder, _marker = _seed_org_and_marker(unique)
+
+    table = client.post(
+        "/matching-rule-tables", json={"name": f"MaterialTable-{unique}", "method": "standard"}, headers=headers
+    ).json()
+    assert table["material_pattern"] is None
+
+    resp = client.post(
+        f"/matching-rule-tables/{table['id']}/material-pattern/begin-upload",
+        json={"file_format": "png", "size_bytes": 11}, headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    begin = resp.json()
+
+    payload = b"fake-pattern"
+    BlobClient.from_blob_url(begin["upload_url"]).upload_blob(payload, overwrite=True)
+    checksum = hashlib.sha256(payload).hexdigest()
+
+    resp = client.post(
+        f"/matching-rule-tables/{table['id']}/material-pattern/complete",
+        json={
+            "storage_container": begin["storage_container"], "storage_key": begin["storage_key"],
+            "checksum_sha256": checksum, "material_name": "Navy Plaid",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    table = resp.json()
+    assert table["material_pattern"] == {"name": "Navy Plaid", "visible": True}
+
+    resp = client.get(f"/matching-rule-tables/{table['id']}/material-pattern/download-url", headers=headers)
+    assert resp.status_code == 200, resp.text
+    downloaded = BlobClient.from_blob_url(resp.json()["download_url"]).download_blob().readall()
+    assert downloaded == payload
+
+    resp = client.put(
+        f"/matching-rule-tables/{table['id']}/material-pattern/visibility", json={"visible": False}, headers=headers
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["material_pattern"] == {"name": "Navy Plaid", "visible": False}
+
+    resp = client.delete(f"/matching-rule-tables/{table['id']}/material-pattern", headers=headers)
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["material_pattern"] is None
