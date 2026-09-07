@@ -55,6 +55,7 @@ class MigrationFindingOut(BaseModel):
     severity: str
     message: str
     geometry_ref: dict = {}
+    resolved: bool = False
 
 
 class MigrationItemOut(BaseModel):
@@ -63,9 +64,14 @@ class MigrationItemOut(BaseModel):
     source_style_ref: str
     status: str
     needs_review: bool
+    warning_accepted: bool = False
+    block_note: str | None = None
     target_piece_id: str | None = None
     converted_geometry: dict | None = None
     source_summary: dict | None = None
+    # The Sec 2.5 diff-highlight catalogue, computed on read from converted_geometry +
+    # source_summary -- see app/migration_diff.py.
+    diff: dict | None = None
     error_detail: str | None = None
     findings: list[MigrationFindingOut] = []
 
@@ -73,8 +79,9 @@ class MigrationItemOut(BaseModel):
 class MigrationBatchOut(BaseModel):
     id: str
     source_system: str
-    status: str
+    status: str  # pending | completed | committed
     auto_sort_flagged: bool
     chunk_count: int
     item_count: int
     counts: dict[str, int] = {}
+    commit_blocked_by: list[str] = []

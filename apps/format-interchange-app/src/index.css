@@ -38,13 +38,21 @@ button:disabled {
   cursor: not-allowed;
 }
 
-input {
+input,
+textarea,
+select {
   font: inherit;
   padding: 5px 8px;
   border: 1px solid var(--border);
   border-radius: 4px;
   background: var(--bg-panel);
   color: var(--text);
+}
+
+textarea {
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  resize: vertical;
 }
 
 .app {
@@ -68,7 +76,7 @@ input {
 }
 
 .app__main {
-  max-width: 560px;
+  max-width: 780px;
   margin: 0 auto;
   padding: 24px 20px;
   display: flex;
@@ -176,11 +184,46 @@ input {
   color: #7a5c00;
 }
 
-.badge--failed {
+.badge--failed,
+.badge--error,
+.badge--blocked {
   background: #fbe9e8;
   color: #b3261e;
 }
 
+.badge--converted,
+.badge--completed,
+.badge--committed,
+.badge--resolved {
+  background: #e5f4e8;
+  color: #1e7e34;
+}
+
+.badge--pending,
+.badge--staged,
+.badge--converted_with_warning {
+  background: #fff3cd;
+  color: #7a5c00;
+}
+
 .error-text {
   color: #b3261e;
+}
+
+.migration-canvas {
+  overflow-x: auto;
+}
+
+.migration-canvas__toolbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+  font-size: 0.85rem;
+}
+
+.migration-canvas__toolbar label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }

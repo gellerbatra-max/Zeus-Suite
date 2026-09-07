@@ -104,14 +104,21 @@ class MigrationItem(Base):
     converted_geometry = Column(JSONB, nullable=True)
     source_summary = Column(JSONB, nullable=True)
     error_detail = Column(Text, nullable=True)
+    # Step 4 triage state -- see 0004's migration docstring for why these aren't in Sec 4's own
+    # field list. `legacy_metadata`: the LegacyMetadata bag last used to classify this item, so
+    # `/resolve` can merge a partial correction into it rather than requiring the whole bag again.
+    legacy_metadata = Column(JSONB, nullable=False, server_default="{}")
+    warning_accepted = Column(Boolean, nullable=False, server_default="false")
+    block_note = Column(Text, nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
 
 
 class MigrationFinding(Base):
     """One error/warning/diff-highlight against a migration item (Sec 4), from the catalogues in
-    Sec 2.3 (errors) / Sec 2.4 (warnings). `resolved_at`/`resolved_by` stay null until Step 4's
-    resolve/accept-warning actions exist -- this table is written here but not yet mutated after
-    creation."""
+    Sec 2.3 (errors) / Sec 2.4 (warnings). `resolved_at`/`resolved_by` are stamped by Step 4's
+    `/accept-warning` action (on that item's warning-severity findings) -- a `/resolve` re-run
+    replaces an item's findings outright rather than mutating old ones, since the old findings may
+    no longer even apply to the corrected geometry."""
 
     __tablename__ = "migration_finding"
 

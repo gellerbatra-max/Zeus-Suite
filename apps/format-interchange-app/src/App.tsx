@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { IdentityBar } from './components/IdentityBar'
+import { MigrationPanel } from './components/MigrationPanel'
 import { api, ApiError } from './api/client'
 import type { ExportIgesJobOut, ImportIgesJobOut } from './api/types'
 
@@ -300,6 +301,8 @@ export default function App() {
             )}
           </section>
         )}
+
+        <MigrationPanel />
       </div>
     </div>
   )

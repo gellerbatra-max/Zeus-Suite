@@ -1,12 +1,13 @@
 # format-interchange-service
 
-Backend for the Format Interchange & Legacy Migration Utility, Steps 1-3 of Phase 3 (see
+Backend + frontend for the Format Interchange & Legacy Migration Utility, Steps 1-4 of Phase 3 (see
 [`docs/planning/04_format_interchange/format_interchange_plan.md`](../../docs/planning/04_format_interchange/format_interchange_plan.md)
 Sec 7): single-piece IGES export ("the smallest complete slice"), single-piece IGES import (the
-reader, the Sec 1.2 option pipeline, Import Profiles, and a staged-commit Import Viewer), and the
+reader, the Sec 1.2 option pipeline, Import Profiles, and a staged-commit Import Viewer), the
 Legacy Migration batch pipeline's classification stage (batch upload, per-item conversion, the
-full Sec 2.3/2.4 error/warning catalogue, and a CSV/JSON findings report -- no Viewer or commit
-yet, that's Step 4).
+full Sec 2.3/2.4 error/warning catalogue, and a CSV/JSON findings report), and the Migration
+Viewer + triage-and-fix loop (canvas overlay, Measure, Snap-to-Geometry, and the
+resolve/block/accept-warning/commit workflow, Sec 2.5/2.6).
 
 ## How this differs from every other app built so far
 
@@ -82,15 +83,32 @@ uses against its own backend, just one hop further out.
   its own multi-grain-line detection, respectively, the latter re-emitted at `error` severity here
   since a legacy-batch item shouldn't silently auto-resolve an ambiguous grain line the way a
   manually-reviewed single-piece import can).
-- `app/api/migration.py` -- `POST /migration/batches` (multipart file upload, one item per file),
-  `POST .../run` (classifies every still-`pending` item -- idempotent in the sense that a re-run
-  only reprocesses items Step 4's resolve action would reset back to `pending`), `GET .../{id}`
-  (status counts), `GET .../{id}/items[/{item_id}]`, `GET .../{id}/report.csv|.json`. The remaining
-  Sec 5 endpoints (`resolve`/`block`/`accept-warning`/`commit`) are Step 4's job -- this slice
-  classifies and reports, it doesn't fix or commit anything to the platform yet.
+- `app/api/migration.py` -- `POST /migration/batches` (multipart file upload, one item per file,
+  `target_collection` locked in here per Step 2's own precedent), `POST .../run` (classifies every
+  still-`pending` item), `GET .../{id}` (status counts + `commit_blocked_by`),
+  `GET .../{id}/items[/{item_id}]`, `GET .../{id}/report.csv|.json` (Step 3), plus Step 4's triage
+  loop: `POST .../items/{item_id}/resolve` (re-runs conversion+classification for one item against
+  merged/corrected `legacy_metadata` and/or a replacement source file -- Sec 2.6 #2), `.../block`
+  (a correction note, for errors like `source_grading_corrupt` that need new source data),
+  `.../accept-warning` (Sec 2.6 #3's "explicit accept-as-is"), and `POST .../{id}/commit` (Sec 2.6
+  #4 -- refuses until every item is `converted`/`resolved`/accepted-`converted_with_warning`/
+  `blocked`; `blocked` items are skipped, not committed, and "remain queued").
+- `app/migration_diff.py` -- the Sec 2.5 diff-highlight catalogue, computed on read from an item's
+  already-stored `source_summary` (raw parsed source) and `converted_geometry` -- no re-parse
+  needed. Reports a uniform perimeter offset vs. individual moved points, and added/removed/moved
+  notches. "Curves Different" (no curve entity in this model) and "Sizes has variations" (already
+  the `unresolvable_size_synonym` finding) aren't separate computations here.
+- `app/platform_commit.py` -- the shared `POST /pieces` + `begin_version`/upload/`complete` helper
+  both the Import Viewer's commit (Step 2) and the Migration batch commit (Step 4) use.
+- `apps/format-interchange-app` -- `src/components/MigrationCanvas.tsx` (the Migration Viewer's
+  canvas: raw-source overlay + converted geometry, Measure, Snap-to-Geometry) and
+  `MigrationPanel.tsx` (batch create/run/triage/commit UI). Mirrors `pattern-design-app`'s own
+  `PatternCanvas.tsx` conventions (1px = 1mm, no Y-flip, wheel-zoom clamped to [0.2, 6]) as a
+  standalone component -- there's no shared npm package between the two apps to import from.
 - `alembic/` -- `format_interchange` schema: `interchange_job` (Step 1) plus (Step 2)
   `import_profile` and `interchange_job.target_piece_id`/nullable `piece_id`, plus (Step 3)
-  `migration_batch`/`migration_item`/`migration_finding`.
+  `migration_batch`/`migration_item`/`migration_finding`, plus (Step 4)
+  `migration_item.legacy_metadata`/`warning_accepted`/`block_note`.
 
 ## Local setup
 
@@ -125,25 +143,23 @@ same rather than assuming port 8000 / the `zeus_suite` database are yours alone.
 
 ## Deferred (flagged, not built here)
 
-Everything past Step 3 of Sec 7's phased plan: the Migration Viewer and triage-and-fix loop (Step
-4 -- side-by-side overlay, Measure, Snap-to-Geometry, the Sec 2.5 diff-highlight catalogue, and the
-`resolve`/`block`/`accept-warning`/`commit` endpoints), and load/audit/RBAC hardening (Step 5).
-Within Step 1: batch export (`POST /export/iges/batch`), `entity_profile` target-system curve
-preferences (no curve/spline entity exists yet to have preferences about), and a dedicated worker
-service-account identity for pushing the platform `Job` through its real `heartbeat`/`complete`
-lifecycle (see `app/api/export.py`'s docstring). Within Step 2: `infer_grade_points`/
-`numbering_scheme` grade-point inference (no grading integration exists in this service),
-`max_arc_points`/`max_spline_points`/`force_sharp_corners` (no arc/spline entity or
+Everything past Step 4 of Sec 7's phased plan: load-testing batch migration at realistic
+legacy-library scale, audit-log completeness, and RBAC role enforcement across every endpoint
+(Step 5). Within Step 1: batch export (`POST /export/iges/batch`), `entity_profile` target-system
+curve preferences (no curve/spline entity exists yet to have preferences about), and a dedicated
+worker service-account identity for pushing the platform `Job` through its real
+`heartbeat`/`complete` lifecycle (see `app/api/export.py`'s docstring). Within Step 2:
+`infer_grade_points`/`numbering_scheme` grade-point inference (no grading integration exists in
+this service), `max_arc_points`/`max_spline_points`/`force_sharp_corners` (no arc/spline entity or
 curve-smoothing exists to act on -- these produce an `option_not_implemented` warning if
-requested), and the Konva-based visual Import Viewer (this slice's viewer is a structured-JSON
-summary + warnings list in `format-interchange-app`, not a canvas rendering -- that's Step 4's
-Migration Viewer work, reused here per the plan's own note that it's a shared component). Within
-Step 3: real chunked/async batch processing at scale (`chunk_count` is computed and stored, but
-`/run` still processes every pending item synchronously in one request, same deviation as Steps
-1-2 -- Step 5's own "load-test batch migration at realistic legacy-library scale" is where this
-gets hardened), any legacy source format other than IGES (Sec 6's per-format parser-module
-extension point is in place via `app/migration_sources.py`, but only `iges` is registered), a
-frontend panel for batches (the plan scopes the Migration Viewer itself to Step 4; Step 3's own
-API surface has no UI-facing endpoints beyond the JSON/CSV report), and the `resolve`/`block`/
-`accept-warning`/`commit` endpoints (Sec 5's own phased split puts these under Step 4's triage
-loop, not Step 3's classification pass).
+requested). Within Step 3: real chunked/async batch processing at scale (`chunk_count` is computed
+and stored, but `/run` still processes every pending item synchronously in one request, same
+deviation as Steps 1-2 -- Step 5's own load-test is where this gets hardened), and any legacy
+source format other than IGES (Sec 6's per-format parser-module extension point is in place via
+`app/migration_sources.py`, but only `iges` is registered -- every Sec 2.3/2.4 catalogue code that
+would come from a real DXF/AAMA-ASTM parser's own extracted metadata instead comes from a
+caller-supplied `LegacyMetadata` bag, see `app/migration_checks.py`'s docstring). Within Step 4:
+"Curves Different" (no curve entity exists to compute a deviation against), and the Sec 2.3 error
+catalogue's own per-code deep-link targets into Pattern Design's editor (this slice's fix path is
+generic -- corrected `legacy_metadata` and/or a replacement file via `/resolve` -- not a bespoke
+resolution UI per error code).

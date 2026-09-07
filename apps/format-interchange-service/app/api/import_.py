@@ -16,11 +16,9 @@ on the original `POST /import/iges` request for either commit path -- it is not 
 commit time, matching how Sec 1.2's table scopes it as a param of the import request itself.
 """
 
-import hashlib
 import json
 import uuid
 
-from azure.storage.blob import BlobClient
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
@@ -35,6 +33,7 @@ from app.import_pipeline import (
 )
 from app.models import ImportProfile, InterchangeJob
 from app.platform_client import PlatformClient
+from app.platform_commit import commit_geometry_to_platform
 from app.schemas import ImportIgesJobOut
 
 router = APIRouter(tags=["import"])
@@ -50,21 +49,6 @@ def _resolve_options(raw_options: dict, actor: dict, db: Session) -> ImportIgesO
         merged.update(profile.params)
     merged.update(raw_options)
     return ImportIgesOptions.model_validate(merged)
-
-
-def _commit_to_platform(client: PlatformClient, folder_id: str, piece_code: str, geometry: dict) -> dict:
-    piece = client.post(
-        "/pieces", json={"folder_id": folder_id, "piece_code": piece_code, "piece_name": piece_code}
-    )
-    payload = json.dumps(geometry).encode()
-    begin = client.post(
-        f"/pieces/{piece['id']}/versions",
-        json={"file_format": "native", "size_bytes": len(payload), "comment": "IGES import"},
-    )
-    BlobClient.from_blob_url(begin["upload_url"]).upload_blob(payload, overwrite=True)
-    checksum = hashlib.sha256(payload).hexdigest()
-    client.post(f"/pieces/{piece['id']}/versions/{begin['version_id']}/complete", json={"checksum_sha256": checksum})
-    return piece
 
 
 @router.post("/import/iges", response_model=ImportIgesJobOut)
@@ -121,7 +105,7 @@ def import_iges(
                 interchange_job.status = "failed"
                 interchange_job.error_detail = "target_collection is required to commit (stage_only=false or auto_approve=true)."
             else:
-                piece = _commit_to_platform(
+                piece = commit_geometry_to_platform(
                     client, parsed_options.target_collection, resolved_piece_code, bundle["geometry"]
                 )
                 interchange_job.status = "committed"
@@ -176,7 +160,7 @@ def commit_import_job(
 
     bundle = json.loads(download_import_bundle(interchange_job.object_storage_key))
     piece_code = interchange_job.params.get("piece_code") or f"IMPORT-{interchange_job.id}"
-    piece = _commit_to_platform(client, target_collection, piece_code, bundle["geometry"])
+    piece = commit_geometry_to_platform(client, target_collection, piece_code, bundle["geometry"])
     interchange_job.status = "committed"
     interchange_job.target_piece_id = uuid.UUID(piece["id"])
     return _job_out(interchange_job)
