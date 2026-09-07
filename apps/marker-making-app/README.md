@@ -148,6 +148,22 @@ service's README for the full architecture).
   placements" pattern (used by Shrink and Stretch's Apply) would silently drop them, so this uses
   its own workspace-rebuild path that reconstructs the full placement list from what the server
   actually returns.
+- **Marker picker** (`MarkerPicker.tsx`, §1.11) — replaces the old paste-a-UUID-only workflow with
+  a "Browse Markers" dropdown: search by code/name and/or filter by workflow status (calls the
+  service's `POST /markers/search`), or a "Recent" list (the 5 most recently opened markers,
+  localStorage-backed — see `recentMarkers.ts`, same convention as `identity.ts`) shown by default
+  when the panel is empty. The plain "Marker ID (uuid)" input + Open Marker button is kept
+  alongside it as a power-user fallback. Once a marker is open, the toolbar gains **Open Next/
+  Previous/Next Unmade/Next Made** — fetches every marker in the current one's folder, sorted
+  alphanumerically by code (`GET .../siblings`), and steps through it client-side, optionally
+  filtered to the first entry matching a status.
+- **Undo/Redo** (§1.11: "Standard multi-level undo/redo on the marker canvas") — scoped to
+  `placements`, the actual canvas edit history (every place/move/rotate/flip/unplace/bundle-op/
+  marker-wide-flip/shrink-stretch-apply/layrule-apply pushes one snapshot), not every side panel's
+  own server-persisted settings (those already have their own save actions). `Ctrl+Z`/`Ctrl+Shift+Z`
+  work globally except while typing in a panel input (so the browser's native text-field undo isn't
+  hijacked); Undo/Redo buttons in the toolbar mirror the same actions. Opening a different marker
+  clears the history — you can't undo into a marker you're no longer looking at.
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -342,3 +358,24 @@ that both pieces appeared at the correct positions immediately, with no reload n
 main "Save" button afterward and confirmed the marker's status badge advanced from "unmade" to
 "made" — the documented catch-up for the "applying doesn't walk the workflow-status graph itself"
 gap.
+
+**Marker picker and Undo/Redo**: seeded three markers in one folder deliberately out of
+alphabetical creation order (`PICK-C`, then `PICK-A`, then `PICK-B`). Clicked "Browse Markers",
+searched `PICK-A`, confirmed exactly one result with the right code/name/status badge, and clicked
+it to open — the marker ID field auto-filled and the marker loaded. Clicked "Next" and confirmed
+it stepped to `PICK-B` (not `PICK-C`, proving the alphanumeric-by-code sort rather than creation
+order); clicked "Next" again to reach `PICK-C`, then "Prev" twice back to `PICK-A`; clicked "Next
+Unmade" from `PICK-A` and confirmed it landed on `PICK-B` (the next sibling with `unmade` status).
+Reopened "Browse Markers" with no search text and confirmed the "Recent" section listed
+`PICK-B, PICK-A, PICK-C` — most-recently-opened first, deduplicated — and clicking an entry there
+opened it correctly. (Caught and fixed a real bug in this pass: reopening the picker was showing
+the *previous* search results instead of Recent, since closing the panel didn't clear the results
+state — fixed by resetting search/results whenever the panel opens.)
+
+For Undo/Redo: opened a marker with one placed, unrotated piece, selected it, clicked "Rotate 90°"
+and confirmed via the Konva scene graph the group's rotation became `90`. Clicked "Undo" and
+confirmed rotation reverted to `0`; clicked "Redo" and confirmed it returned to `90`. Clicked
+"Undo" again (back to `0`), then clicked "Flip H" (a *new* edit) and confirmed via direct DOM
+inspection that the Redo button became disabled again while Undo stayed enabled — standard
+"a new edit clears the redo stack" semantics — and that the flip itself applied correctly
+(`scaleX: -1`) on top of the un-rotated state.

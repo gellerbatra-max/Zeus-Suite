@@ -263,3 +263,25 @@ export interface SpliceSettingsOut {
   margin: number | null
   separation: number | null
 }
+
+// -- Marker picker (Sec 1.11, new) -----------------------------------------------------------
+
+export interface MarkerSearchResult {
+  id: string
+  code: string
+  name: string
+  folder_path: string | null
+  workflow_status: string
+  updated_at: string
+}
+
+export interface MarkerSearchResponse {
+  results: MarkerSearchResult[]
+  total: number
+}
+
+export interface MarkerSibling {
+  id: string
+  marker_code: string
+  workflow_status: string
+}

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { IdentityBar } from './components/IdentityBar'
 import { PieceTray } from './components/PieceTray'
 import { MarkerCanvas } from './components/MarkerCanvas'
@@ -13,9 +13,11 @@ import { BundlePanel } from './components/BundlePanel'
 import type { BundleGroupBox } from './components/MarkerCanvas'
 import { SplicePanel } from './components/SplicePanel'
 import { LayrulePanel } from './components/LayrulePanel'
+import { MarkerPicker } from './components/MarkerPicker'
+import { pushRecentMarker } from './recentMarkers'
 import { api, ApiError } from './api/client'
 import type {
-  BlockBufferRuleTableOut, FuseBlockOut, MatchGuidanceOut, SpliceMarkOut, WeaveLine, WorkspaceOut,
+  BlockBufferRuleTableOut, FuseBlockOut, MarkerSibling, MatchGuidanceOut, SpliceMarkOut, WeaveLine, WorkspaceOut,
 } from './api/types'
 
 // The length axis (X) has no stored dimension -- a marker's length is however long its placed
@@ -73,10 +75,75 @@ export default function App() {
   const [targetLength, setTargetLength] = useState<number | null>(null)
   const [fabricWidth, setFabricWidth] = useState<number | null>(null)
   const [spliceMarks, setSpliceMarks] = useState<SpliceMarkOut[]>([])
+  const [siblings, setSiblings] = useState<MarkerSibling[]>([])
   const lastGuidanceAt = useRef(0)
 
-  const openMarker = async () => {
-    const markerId = markerIdInput.trim()
+  // Undo/Redo (Sec 1.11: "Standard multi-level undo/redo on the marker canvas"). Scoped to
+  // `placements` -- the actual canvas edit history -- not every side panel's own server-persisted
+  // settings (matching rule tables, splice settings, etc. all have their own save/cancel already).
+  // The stacks themselves live in refs (pushing a snapshot shouldn't itself trigger a render), but
+  // their *lengths* are mirrored into real state so the Undo/Redo buttons' `disabled` prop reads
+  // React state during render rather than a ref (refs aren't safe to read during render).
+  const undoStackRef = useRef<CanvasPlacement[][]>([])
+  const redoStackRef = useRef<CanvasPlacement[][]>([])
+  const [undoCount, setUndoCount] = useState(0)
+  const [redoCount, setRedoCount] = useState(0)
+
+  // The ref mutation happens synchronously here in the event handler (reading `placements` from
+  // the component's own closure, which is current between renders) rather than inside a
+  // setPlacements updater callback -- React doesn't guarantee an updater runs synchronously (and
+  // may double-invoke it under StrictMode), so mutating a ref from inside one is unsafe.
+  const updatePlacements = (updater: (prev: CanvasPlacement[]) => CanvasPlacement[]) => {
+    undoStackRef.current = [...undoStackRef.current, placements]
+    redoStackRef.current = []
+    setPlacements(updater)
+    setUndoCount(undoStackRef.current.length)
+    setRedoCount(0)
+  }
+
+  const clearHistory = () => {
+    undoStackRef.current = []
+    redoStackRef.current = []
+    setUndoCount(0)
+    setRedoCount(0)
+  }
+
+  const undo = () => {
+    if (undoStackRef.current.length === 0) return
+    const previous = undoStackRef.current[undoStackRef.current.length - 1]
+    undoStackRef.current = undoStackRef.current.slice(0, -1)
+    redoStackRef.current = [...redoStackRef.current, placements]
+    setPlacements(previous)
+    setUndoCount(undoStackRef.current.length)
+    setRedoCount(redoStackRef.current.length)
+  }
+
+  const redo = () => {
+    if (redoStackRef.current.length === 0) return
+    const next = redoStackRef.current[redoStackRef.current.length - 1]
+    redoStackRef.current = redoStackRef.current.slice(0, -1)
+    undoStackRef.current = [...undoStackRef.current, placements]
+    setPlacements(next)
+    setUndoCount(undoStackRef.current.length)
+    setRedoCount(redoStackRef.current.length)
+  }
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement | null
+      // Don't hijack the browser's own text-field undo/redo while typing in a panel input.
+      if (target && ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName)) return
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== 'z') return
+      e.preventDefault()
+      if (e.shiftKey) redo()
+      else undo()
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [undo, redo])
+
+  const openMarker = async (idOverride?: string) => {
+    const markerId = (idOverride ?? markerIdInput).trim()
     if (!markerId) return
     setError(null)
     try {
@@ -96,10 +163,35 @@ export default function App() {
       setTargetLength(null)
       setFabricWidth(ws.fabric_width)
       setSpliceMarks([])
+      setMarkerIdInput(markerId)
+      clearHistory()
+      pushRecentMarker({ id: ws.marker_id, markerCode: ws.marker_code })
+      api
+        .get<MarkerSibling[]>(`/markers/${markerId}/siblings`)
+        .then(setSiblings)
+        .catch(() => setSiblings([]))
     } catch (err) {
       setWorkspace(null)
       setError(err instanceof ApiError ? err.message : String(err))
     }
+  }
+
+  // Open Next/Previous/Next Unmade/Next Made (Sec 1.11): steps through `siblings` -- every marker
+  // in the current marker's folder, sorted alphanumerically by marker_code (the "current storage
+  // area" the plan describes) -- optionally filtered to the first entry matching a given status.
+  const stepMarker = (direction: 'next' | 'prev', statusFilter?: string) => {
+    if (!workspace) return
+    const idx = siblings.findIndex((s) => s.id === workspace.marker_id)
+    if (idx === -1) return
+    const range = direction === 'next' ? siblings.slice(idx + 1) : siblings.slice(0, idx).reverse()
+    const match = statusFilter ? range.find((s) => s.workflow_status === statusFilter) : range[0]
+    if (!match) {
+      setError(
+        `No ${direction === 'next' ? 'next' : 'previous'}${statusFilter ? ` ${statusFilter}` : ''} marker in this folder.`,
+      )
+      return
+    }
+    openMarker(match.id)
   }
 
   const unplacedPieces = workspace
@@ -133,7 +225,7 @@ export default function App() {
     if (!workspace) return
     const piece = workspace.available_pieces.find((p) => p.id === pieceId)
     if (!piece) return
-    setPlacements((prev) => [
+    updatePlacements((prev) => [
       ...prev,
       {
         pieceId, pieceCode: piece.piece_code, x, y, rotationDeg: 0, flipX: false, flipY: false,
@@ -146,12 +238,12 @@ export default function App() {
   }
 
   const handleMove = (pieceId: string, x: number, y: number) => {
-    setPlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, x, y } : p)))
+    updatePlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, x, y } : p)))
     setGuidance(null)
   }
 
   const handleAssignMark = (pieceId: string, markId: string | null) => {
-    setPlacements((prev) => {
+    updatePlacements((prev) => {
       const target = prev.find((p) => p.pieceId === pieceId)
       if (!target) return prev
       // Stripe-only-in-a-set (Sec 1.4): by default, assigning a mark to a piece syncs the same
@@ -171,11 +263,11 @@ export default function App() {
   }
 
   const handleSetWeaveLineOverride = (pieceId: string, override: { angleDeg: number; offset: number } | null) => {
-    setPlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, weaveLineOverride: override } : p)))
+    updatePlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, weaveLineOverride: override } : p)))
   }
 
   const handleAssignBlockBufferRule = (pieceId: string, ruleNo: number | null) => {
-    setPlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, blockBufferRuleNo: ruleNo } : p)))
+    updatePlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, blockBufferRuleNo: ruleNo } : p)))
   }
 
   // Bundle management (Sec 1.3): a bundle groups several placed pieces (one garment, one size)
@@ -192,11 +284,11 @@ export default function App() {
 
   const handleCreateBundle = (pieceIds: string[]) => {
     const bundleId = nextBundleId()
-    setPlacements((prev) => prev.map((p) => (pieceIds.includes(p.pieceId) ? { ...p, bundleId } : p)))
+    updatePlacements((prev) => prev.map((p) => (pieceIds.includes(p.pieceId) ? { ...p, bundleId } : p)))
   }
 
   const handleUnplaceBundle = (bundleId: string) => {
-    setPlacements((prev) => prev.filter((p) => p.bundleId !== bundleId))
+    updatePlacements((prev) => prev.filter((p) => p.bundleId !== bundleId))
     setSelectedPieceId((prev) => (placements.find((p) => p.pieceId === prev)?.bundleId === bundleId ? null : prev))
   }
 
@@ -206,7 +298,7 @@ export default function App() {
     const members = placements.filter((p) => p.bundleId === bundleId)
     const bbox = computeBoundingBox(members)
     if (!bbox) return
-    setPlacements((prev) =>
+    updatePlacements((prev) =>
       prev.map((p) => {
         if (p.bundleId !== bundleId) return p
         let { x, y, flipX, flipY } = p
@@ -224,13 +316,13 @@ export default function App() {
   }
 
   const handleResetBundleOrientation = (bundleId: string) => {
-    setPlacements((prev) =>
+    updatePlacements((prev) =>
       prev.map((p) => (p.bundleId === bundleId ? { ...p, rotationDeg: 0, flipX: false, flipY: false } : p)),
     )
   }
 
   const handleSetBundleQuantity = (bundleId: string, quantity: number) => {
-    setPlacements((prev) => prev.map((p) => (p.bundleId === bundleId ? { ...p, quantity } : p)))
+    updatePlacements((prev) => prev.map((p) => (p.bundleId === bundleId ? { ...p, quantity } : p)))
   }
 
   const bundleGroups: BundleGroupBox[] = (() => {
@@ -267,12 +359,12 @@ export default function App() {
 
   const updateSelected = (fn: (p: CanvasPlacement) => CanvasPlacement) => {
     if (!selectedPieceId) return
-    setPlacements((prev) => prev.map((p) => (p.pieceId === selectedPieceId ? fn(p) : p)))
+    updatePlacements((prev) => prev.map((p) => (p.pieceId === selectedPieceId ? fn(p) : p)))
   }
 
   const unplaceSelected = () => {
     if (!selectedPieceId) return
-    setPlacements((prev) => prev.filter((p) => p.pieceId !== selectedPieceId))
+    updatePlacements((prev) => prev.filter((p) => p.pieceId !== selectedPieceId))
     setSelectedPieceId(null)
   }
 
@@ -283,7 +375,7 @@ export default function App() {
   const flipMarker = (axis: 'x' | 'y' | 'xy') => {
     const bbox = computeBoundingBox(placements)
     if (!bbox) return
-    setPlacements((prev) =>
+    updatePlacements((prev) =>
       prev.map((p) => {
         let { x, y, flipX, flipY } = p
         if (axis === 'x' || axis === 'xy') {
@@ -305,7 +397,7 @@ export default function App() {
   // matching, fuse-block, or any other panel's state.
   const applyWorkspaceGeometry = (ws: WorkspaceOut) => {
     setWorkspace(ws)
-    setPlacements((prev) => prev.map((p) => toCanvasPlacement(ws, p.pieceId) ?? p))
+    updatePlacements((prev) => prev.map((p) => toCanvasPlacement(ws, p.pieceId) ?? p))
   }
 
   // Applying a layrule (Sec 1.5) can place pieces that had no prior local placement at all (the
@@ -315,7 +407,7 @@ export default function App() {
   // dropped.
   const applyLayruleWorkspace = (ws: WorkspaceOut) => {
     setWorkspace(ws)
-    setPlacements(
+    updatePlacements(() =>
       ws.placements.map((p) => toCanvasPlacement(ws, p.piece_id)).filter((p): p is CanvasPlacement => p !== null),
     )
     setSelectedPieceId(null)
@@ -367,13 +459,33 @@ export default function App() {
           onChange={(e) => setMarkerIdInput(e.target.value)}
           onKeyDown={(e) => e.key === 'Enter' && openMarker()}
         />
-        <button onClick={openMarker}>Open Marker</button>
+        <button onClick={() => openMarker()}>Open Marker</button>
+        <MarkerPicker onOpenMarker={(id) => openMarker(id)} />
         {workspace && (
           <>
             <span className="badge">{workspace.marker_code}</span>
             <span className={`badge badge--${workspace.workflow_status}`}>{workspace.workflow_status}</span>
             <button onClick={save} disabled={saving}>
               {saving ? 'Saving…' : 'Save'}
+            </button>
+            <button onClick={undo} disabled={undoCount === 0}>
+              Undo (Ctrl+Z)
+            </button>
+            <button onClick={redo} disabled={redoCount === 0}>
+              Redo (Ctrl+⇧Z)
+            </button>
+            <span className="hint">Open:</span>
+            <button onClick={() => stepMarker('prev')} disabled={siblings.length === 0}>
+              ◀ Prev
+            </button>
+            <button onClick={() => stepMarker('next')} disabled={siblings.length === 0}>
+              Next ▶
+            </button>
+            <button onClick={() => stepMarker('next', 'unmade')} disabled={siblings.length === 0}>
+              Next Unmade ▶
+            </button>
+            <button onClick={() => stepMarker('next', 'made')} disabled={siblings.length === 0}>
+              Next Made ▶
             </button>
           </>
         )}

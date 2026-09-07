@@ -225,6 +225,14 @@ own) — fixed in the same pass across every entity router, not scoped to search
   rejection for `layrule_search_table_id`), and permission enforcement; `tests/test_constraints.py`
   covers the `(organization_id, name)` UNIQUE constraint on both new tables.
 
+- Marker Making §1.11 (file/data management — marker picker): deliberately **no platform changes
+  at all**. `GET /markers` (folder-scoped list), `GET /folders` (name-search + tree browsing), and
+  `POST /search`/`GET /search/suggest` (Section 4.8's "Find" utility) already existed, unused by
+  Marker Making until now — [`marker-making-service`](../marker-making-service) just proxies
+  `POST /search` (restricted to `entity_types: ["marker"]`) and a folder-scoped `GET /markers` for
+  the "Open Next/Previous" family. No new tests here since nothing here changed; the service's own
+  `tests/test_marker_picker.py` covers the proxy behavior against this real API.
+
 ## Useful commands
 
 ```bash

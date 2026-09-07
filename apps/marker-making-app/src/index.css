@@ -817,3 +817,75 @@ input {
   color: var(--accent);
   margin: 0;
 }
+
+/* Marker picker (Sec 1.11) */
+
+.marker-picker {
+  position: relative;
+}
+
+.marker-picker__panel {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  z-index: 10;
+  width: 360px;
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  background: var(--bg-panel);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+}
+
+.marker-picker__panel label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.marker-picker__inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.marker-picker__inline-form input {
+  flex: 1;
+  min-width: 140px;
+}
+
+.marker-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.marker-picker__result {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  text-align: left;
+  padding: 6px 8px;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+}
+
+.marker-picker__result:hover {
+  background: var(--bg);
+}
+
+.marker-picker__result-code {
+  font-weight: 600;
+  font-size: 0.85rem;
+}

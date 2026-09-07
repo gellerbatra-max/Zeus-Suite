@@ -491,3 +491,34 @@ class ApplyLayruleResult(BaseModel):
 class LayruleSettingsPatchRequest(BaseModel):
     force_layrule_name: str | None = None
     layrule_search_table_id: str | None = None
+
+
+# -- Marker picker (Sec 1.11) -----------------------------------------------------------------
+
+
+class MarkerSearchRequest(BaseModel):
+    text: str | None = None
+    workflow_status: list[str] | None = None
+    folder_id: str | None = None
+    page: int = 1
+    page_size: int = 20
+
+
+class MarkerSearchResult(BaseModel):
+    id: str
+    code: str
+    name: str
+    folder_path: str | None
+    workflow_status: str
+    updated_at: str
+
+
+class MarkerSearchResponse(BaseModel):
+    results: list[MarkerSearchResult]
+    total: int
+
+
+class MarkerSibling(BaseModel):
+    id: str
+    marker_code: str
+    workflow_status: str

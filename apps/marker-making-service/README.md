@@ -185,6 +185,17 @@ toggle (below) the same way as a `cutter_stripe_needed` key — neither needed a
   explicit Save. `tests/test_layrules.py` covers search-table CRUD, settings round-trip,
   capture-then-apply onto a matching marker (full placement round-trip verified exactly), the
   unmatched-piece report, the area-deviation rejection, and the allow-overrides rejection.
+- `app/api/marker_picker.py` — §1.11 "Open by name" and "step to the next Unmade/Made... marker
+  alphanumerically." No new platform schema needed — `GET /markers`, `GET /folders`, and
+  `POST /search` (Section 4.8's "Find" utility) already existed, just unused by Marker Making
+  until now. `POST /markers/search` proxies `POST /search` with `entity_types` hardcoded to
+  `["marker"]` and reshapes the response; `GET /markers/{id}/siblings` fetches every marker in the
+  same folder as the given one and sorts by `marker_code` here (the platform's own `_search_marker`
+  doesn't order results, so "alphanumerically" has to be guaranteed at this layer) — the frontend
+  walks that ordered list client-side to find the next/previous entry, optionally filtered by
+  status, rather than this service exposing four near-identical stepping endpoints.
+  `tests/test_marker_picker.py` covers text search, browse-mode status filtering, and that
+  siblings are correctly sorted and folder-scoped.
 
 ## Local setup
 
@@ -237,6 +248,14 @@ runtime meaning in this implementation, unlike `area_compare`/`allow_overrides`;
 *finding* which layrule matches a marker (an operator picks one explicitly from a list here,
 there's no search/scoring step); and workflow-status advancement on apply (see the "Known gap"
 above -- Save afterward to bring the status current).
+
+Within file/data management (§1.11) specifically: Storage Areas creation (browsing/selecting
+existing folders through the platform API is covered; creating one is the Data Management app's
+job, per the plan's own framing), Save family nuances beyond a single Save (temp-save, Save As
+under a new name — this app has one marker identity per open session), Import (legacy MicroMark
+marker format), Encryption, and the platform's Activity Log viewer (audit trail already exists on
+the platform per every mutating action here, but there's no dedicated viewer surfaced in this
+app — see [`data-platform-api`](../data-platform-api)'s own `GET /audit-log`).
 
 Within fuse-blocking (§1.6) specifically: manual-trace (polygon) block shape — only rectangles,
 per the platform's `shape` CHECK; Create Fusing Marker and Cut Net Parts, both blocked on a
