@@ -16,6 +16,7 @@ class PlacementData(BaseModel):
     weave_line_angle_deg: float | None = None
     weave_line_offset: float | None = None
     stripe_independent_in_set: bool = False
+    block_buffer_rule_no: int | None = None
 
 
 class PlacementIn(BaseModel):
@@ -240,3 +241,68 @@ class MaterialPatternVisibilityRequest(BaseModel):
 class MaterialPatternDownloadUrlOut(BaseModel):
     download_url: str
     expires_at: str
+
+
+# -- Block / buffer / fuse-blocking (marker_making_production_plan.md Sec 1.6, new) --------------
+
+
+class BlockBufferRuleTableCreate(BaseModel):
+    name: str
+    rule_no: int
+    rule_type: str  # block | buffer
+    mode: str  # static | dynamic
+    left_amt: float = 0.0
+    top_amt: float = 0.0
+    right_amt: float = 0.0
+    bottom_amt: float = 0.0
+
+
+class BlockBufferRuleTablePatch(BaseModel):
+    name: str | None = None
+    rule_no: int | None = None
+    rule_type: str | None = None
+    mode: str | None = None
+    left_amt: float | None = None
+    top_amt: float | None = None
+    right_amt: float | None = None
+    bottom_amt: float | None = None
+
+
+class BlockBufferRuleTableOut(BaseModel):
+    id: str
+    name: str
+    rule_no: int
+    rule_type: str
+    mode: str
+    left_amt: float
+    top_amt: float
+    right_amt: float
+    bottom_amt: float
+    version: int
+
+
+class CreateFuseBlockRequest(BaseModel):
+    piece_ids: list[str]
+    block_amount: float = 0.5
+    reduce_amount: float = 0.0
+
+
+class ModifyFuseBlockRequest(BaseModel):
+    piece_ids: list[str] | None = None
+    block_amount: float | None = None
+    reduce_amount: float | None = None
+
+
+class FuseBlockOut(BaseModel):
+    id: str
+    marker_id: str
+    shape: str
+    x: float
+    y: float
+    width: float
+    height: float
+    piece_placement_ids: list[str]
+    block_amount: float
+    reduce_amount: float
+    notch_depth: float
+    version: int

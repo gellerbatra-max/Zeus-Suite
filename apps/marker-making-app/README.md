@@ -63,6 +63,19 @@ service's README for the full architecture).
   in the piece toolbar opts a piece out of that sync — it neither pushes its own assignment onto
   its size group nor gets overwritten when another piece in that group is reassigned. A small
   purple "S" badge renders next to an independent piece's stripe-mark tick on the canvas.
+- **Fuse Block panel** (`FuseBlockPanel.tsx`, §1.6) — create/delete block-buffer rule tables
+  (name, rule #, block/buffer type, static/dynamic mode, L/T/R/B amounts), assign one to the
+  selected piece (renders a small teal "BL"/"BU" badge on the canvas per the rule's type), and
+  manage fuse blocks. **Known simplification**: this canvas has no marquee/ctrl-click multi-select,
+  so grouping several pieces into one fuse block uses a sequential "draft" workflow instead — select
+  a piece, click "Add Selected Piece" to accumulate it into a list, repeat, then "Create Fuse Block"
+  once the whole group is queued. Each fuse block in the list shows its member pieces, current
+  `block`/`reduce` amounts and derived `notch` depth, plus "Recompute Bounds" (re-fetches the
+  member pieces' current placements and re-derives the bounding box — for after one has been
+  dragged), `Block ±`/`Reduce ±` steppers, and Delete/Delete All. On canvas, a block renders as a
+  dashed teal rectangle inflated by `block_amount` around the tight bbox of its member pieces, plus
+  a small V-notch at the Op-Stop pause point labeled with the derived notch depth — visual/
+  informational only, since no real cut-file pipeline exists yet.
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -146,6 +159,21 @@ transparent full-marker background, (b) the thumbnail `<img>` element had `compl
 `naturalWidth/naturalHeight: 1×1` (matching the 1×1 test PNG) after loading from a real Azurite SAS
 URL, and (c) clicking "Hide on Canvas" removed the background immediately, confirming the
 visibility toggle reaches the canvas layer correctly.
+
+**Fuse Blocking**: seeded two placed pieces on one marker at `{x:10,y:20,w:50,h:40}` and
+`{x:80,y:5,w:30,h:60}` (hand-calculated tight bbox of both: `x=10,y=5,width=100,height=60`),
+created a block-buffer rule table (`#1 Fuse Rule A`, block/static), selected the first piece and
+assigned it that rule via the "Selected piece's rule" dropdown — confirmed the teal "BL" badge
+rendered on the piece (verified both visually and by querying the Konva scene graph directly,
+since this pane's `zoom` region-crop isn't supported here). Selected each piece in turn and used
+"Add Selected Piece" to queue both into the fuse-block draft, then "Create Fuse Block" with the
+default block=0.5/reduce=0 — confirmed via `GET /markers/{id}/fuse-blocks` that the stored bounds
+were exactly `x=10.0, y=5.0, width=100.0, height=60.0`, matching the hand calculation precisely,
+and via the Konva scene graph that the rendered dashed rectangle was `x=9.5, y=4.5, w=101, h=61`
+(the stored bbox inflated by `block_amount=0.5` on every side, as intended) with a `"notch 0.50"`
+label. Clicked "Block +" and confirmed the panel and the notch label both updated to `0.60`, then
+deleted the fuse block and confirmed both the panel list and `GET /markers/{id}/fuse-blocks`
+went empty.
 
 **Stripe-only-in-a-set**: seeded two same-size (`M`) pieces on one marker, both defaulting to
 "Stripe Set: Linked". Assigned Mark 1 to piece A and confirmed piece B's stripe-mark tick appeared

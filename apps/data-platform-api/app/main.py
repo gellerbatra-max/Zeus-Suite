@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import (
     audit_log,
+    block_buffer,
     folders,
     jobs,
     markers,
@@ -74,6 +75,7 @@ app.include_router(pieces.router)
 app.include_router(styles.router)
 app.include_router(markers.router)
 app.include_router(matching.router)
+app.include_router(block_buffer.router)
 app.include_router(orders.router)
 app.include_router(workflow.router)
 app.include_router(audit_log.router)

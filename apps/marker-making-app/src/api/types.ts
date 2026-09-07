@@ -13,6 +13,7 @@ export interface PlacementData {
   weave_line_angle_deg?: number | null
   weave_line_offset?: number | null
   stripe_independent_in_set?: boolean
+  block_buffer_rule_no?: number | null
 }
 
 export interface WorkspacePiece {
@@ -143,4 +144,34 @@ export interface ValidateBiteOut {
   bite_length: number
   ok: boolean
   violations: BiteViolation[]
+}
+
+// -- Block / buffer / fuse-blocking (Sec 1.6, new) -----------------------------------------------
+
+export interface BlockBufferRuleTableOut {
+  id: string
+  name: string
+  rule_no: number
+  rule_type: string
+  mode: string
+  left_amt: number
+  top_amt: number
+  right_amt: number
+  bottom_amt: number
+  version: number
+}
+
+export interface FuseBlockOut {
+  id: string
+  marker_id: string
+  shape: string
+  x: number
+  y: number
+  width: number
+  height: number
+  piece_placement_ids: string[]
+  block_amount: number
+  reduce_amount: number
+  notch_depth: number
+  version: number
 }

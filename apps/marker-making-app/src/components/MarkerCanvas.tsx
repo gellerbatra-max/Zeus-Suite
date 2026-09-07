@@ -2,7 +2,7 @@ import type { DragEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { Arrow, Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text } from 'react-konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
-import type { MatchGuidanceOut, WeaveLine } from '../api/types'
+import type { FuseBlockOut, MatchGuidanceOut, WeaveLine } from '../api/types'
 import { boundingBoxesOverlap, weaveLineSegment } from '../geometry'
 
 // Define Material / Material Pattern (Sec 1.4, "Show Marker's Pattern"): loads the fabric
@@ -41,6 +41,7 @@ export interface CanvasPlacement {
   cutterStripeNeeded: boolean
   weaveLineOverride: { angleDeg: number; offset: number } | null
   stripeIndependentInSet: boolean
+  blockBufferRuleNo: number | null
 }
 
 interface Props {
@@ -55,6 +56,8 @@ interface Props {
   guidance?: { pieceId: string; result: MatchGuidanceOut } | null
   weaveLine?: WeaveLine | null
   materialPatternUrl?: string | null
+  fuseBlocks?: FuseBlockOut[]
+  blockBufferRuleTypes?: Record<number, string>
 }
 
 export function MarkerCanvas({
@@ -69,6 +72,8 @@ export function MarkerCanvas({
   guidance,
   weaveLine,
   materialPatternUrl,
+  fuseBlocks = [],
+  blockBufferRuleTypes = {},
 }: Props) {
   const materialImage = useHtmlImage(materialPatternUrl)
   const overlapping = new Set<string>()
@@ -153,6 +158,14 @@ export function MarkerCanvas({
                 // where assigning a mark to one syncs it across the whole size group.
                 <Text text="S" x={12} y={0} fontSize={9} fontStyle="bold" fill="#8a2be2" />
               )}
+              {p.blockBufferRuleNo != null && (
+                // Block/Buffer toolbox toggle (Sec 1.6): "BL"/"BU" flag per the plan doc, per the
+                // rule's type (defaults to "BU" if the rule table lookup isn't loaded yet).
+                <Text
+                  text={blockBufferRuleTypes[p.blockBufferRuleNo] === 'block' ? 'BL' : 'BU'}
+                  x={p.width - 18} y={0} fontSize={9} fontStyle="bold" fill="#0f766e"
+                />
+              )}
             </Group>
           ))}
         </Layer>
@@ -192,6 +205,33 @@ export function MarkerCanvas({
                   points={[seg.x1, seg.y1, seg.x2, seg.y2]}
                   stroke="#8a6d3b" strokeWidth={1.5} dash={[3, 3]}
                 />
+              )
+            })}
+          </Layer>
+        )}
+        {fuseBlocks.length > 0 && (
+          <Layer listening={false}>
+            {fuseBlocks.map((block) => {
+              // Block Fuse settings (Sec 1.6): block_amount is "extra space added around a
+              // grouped block" -- the stored x/y/width/height are the tight bbox of member
+              // pieces, so the visual outline inflates it by block_amount on every side.
+              const bx = block.x - block.block_amount
+              const by = block.y - block.block_amount
+              const bw = block.width + block.block_amount * 2
+              const bh = block.height + block.block_amount * 2
+              const notchY = by + bh / 2
+              return (
+                <Group key={block.id}>
+                  <Rect x={bx} y={by} width={bw} height={bh} stroke="#0f766e" strokeWidth={1.5} dash={[8, 4]} />
+                  {/* Block Notch (Sec 1.4/1.6): V-shaped mark at the cutter's Op-Stop pause
+                      point, depth = Block Fuse Amount - Reduce Fuse Amount. No real cut-file
+                      pipeline exists yet, so this is a visual/informational marker only. */}
+                  <Line
+                    points={[bx, notchY - 5, bx + 6, notchY, bx, notchY + 5]}
+                    stroke="#0f766e" strokeWidth={1.5}
+                  />
+                  <Text text={`notch ${(block.block_amount - block.reduce_amount).toFixed(2)}`} x={bx + 10} y={notchY - 14} fontSize={9} fill="#0f766e" />
+                </Group>
               )
             })}
           </Layer>

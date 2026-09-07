@@ -79,7 +79,7 @@ input {
 .app__main {
   flex: 1;
   display: grid;
-  grid-template-columns: 220px 1fr 300px 260px;
+  grid-template-columns: 220px 1fr 300px 280px 260px;
   gap: 20px;
   padding: 20px;
   align-items: start;
@@ -389,4 +389,81 @@ input {
   object-fit: cover;
   border: 1px solid var(--border);
   border-radius: 3px;
+}
+
+/* Fuse block panel (Sec 1.6) */
+
+.fuse-block-panel {
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.fuse-block-panel h3 {
+  margin-top: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.fuse-block-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.fuse-block-panel__section:last-child {
+  border-bottom: none;
+}
+
+.fuse-block-panel__section label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.fuse-block-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.fuse-block-panel__list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.fuse-block-panel__list--stacked li {
+  flex-direction: column;
+  align-items: flex-start;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 6px;
+}
+
+.fuse-block-panel__block-item {
+  gap: 4px;
+}
+
+.fuse-block-panel__block-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.fuse-block-panel__block-actions button {
+  padding: 3px 6px;
+  font-size: 0.72rem;
 }

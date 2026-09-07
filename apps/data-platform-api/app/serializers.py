@@ -7,8 +7,10 @@ from sqlalchemy.orm import Session
 
 from app import schemas
 from app.models import (
+    BlockBufferRuleTable,
     Bundle,
     Folder,
+    FuseBlock,
     Marker,
     MatchingRuleTable,
     Order,
@@ -94,6 +96,41 @@ def matching_rule_table_out(session: Session, row: MatchingRuleTable) -> schemas
         stripe_marks_json=row.stripe_marks_json,
         weave_line_json=row.weave_line_json,
         material_pattern_json=row.material_pattern_json,
+        version=row.version,
+        created_at=row.created_at,
+        created_by=row.created_by,
+    )
+
+
+def block_buffer_rule_table_out(row: BlockBufferRuleTable) -> schemas.BlockBufferRuleTableOut:
+    return schemas.BlockBufferRuleTableOut(
+        id=row.id,
+        name=row.name,
+        rule_no=row.rule_no,
+        rule_type=row.rule_type,
+        mode=row.mode,
+        left_amt=row.left_amt,
+        top_amt=row.top_amt,
+        right_amt=row.right_amt,
+        bottom_amt=row.bottom_amt,
+        version=row.version,
+        created_at=row.created_at,
+        created_by=row.created_by,
+    )
+
+
+def fuse_block_out(row: FuseBlock) -> schemas.FuseBlockOut:
+    return schemas.FuseBlockOut(
+        id=row.id,
+        marker_id=row.marker_id,
+        shape=row.shape,
+        x=row.x,
+        y=row.y,
+        width=row.width,
+        height=row.height,
+        piece_placement_ids=row.piece_placement_ids,
+        block_amount=row.block_amount,
+        reduce_amount=row.reduce_amount,
         version=row.version,
         created_at=row.created_at,
         created_by=row.created_by,

@@ -290,6 +290,82 @@ class JsonArrayReplace(BaseModel):
     items: list[dict[str, Any]]
 
 
+# -- Block / buffer / fuse-blocking (Marker Making Sec 1.6, new) ----------------------------------
+
+
+class BlockBufferRuleTableCreate(BaseModel):
+    name: str
+    rule_no: int
+    rule_type: str
+    mode: str
+    left_amt: float = 0.0
+    top_amt: float = 0.0
+    right_amt: float = 0.0
+    bottom_amt: float = 0.0
+
+
+class BlockBufferRuleTablePatch(BaseModel):
+    name: str | None = None
+    rule_no: int | None = None
+    rule_type: str | None = None
+    mode: str | None = None
+    left_amt: float | None = None
+    top_amt: float | None = None
+    right_amt: float | None = None
+    bottom_amt: float | None = None
+
+
+class BlockBufferRuleTableOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    rule_no: int
+    rule_type: str
+    mode: str
+    left_amt: float
+    top_amt: float
+    right_amt: float
+    bottom_amt: float
+    version: int
+    created_at: datetime
+    created_by: uuid.UUID
+
+
+class FuseBlockCreate(BaseModel):
+    piece_placement_ids: list[str]
+    x: float
+    y: float
+    width: float
+    height: float
+    block_amount: float = 0.5
+    reduce_amount: float = 0.0
+
+
+class FuseBlockPatch(BaseModel):
+    piece_placement_ids: list[str] | None = None
+    x: float | None = None
+    y: float | None = None
+    width: float | None = None
+    height: float | None = None
+    block_amount: float | None = None
+    reduce_amount: float | None = None
+
+
+class FuseBlockOut(BaseModel):
+    id: uuid.UUID
+    marker_id: uuid.UUID
+    shape: str
+    x: float
+    y: float
+    width: float
+    height: float
+    piece_placement_ids: list[str]
+    block_amount: float
+    reduce_amount: float
+    version: int
+    created_at: datetime
+    created_by: uuid.UUID
+
+
 # -- Orders and bundles (4.6) --------------------------------------------------------------------
 
 

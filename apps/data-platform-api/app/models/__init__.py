@@ -9,6 +9,7 @@ columns without a careful manual review.
 """
 
 from app.models.audit import AuditLog
+from app.models.block_buffer import BlockBufferRuleTable, FuseBlock
 from app.models.bundles import Bundle
 from app.models.folders import Folder
 from app.models.identity import (
@@ -31,8 +32,10 @@ from app.models.workflow import WorkflowStatus, WorkflowTransition
 
 __all__ = [
     "AuditLog",
+    "BlockBufferRuleTable",
     "Bundle",
     "Folder",
+    "FuseBlock",
     "Job",
     "JobEvent",
     "JobType",

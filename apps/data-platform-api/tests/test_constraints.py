@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models import (
+    BlockBufferRuleTable,
     Bundle,
     Folder,
     MatchingRuleTable,
@@ -168,6 +169,43 @@ def test_matching_rule_table_duplicate_name_in_same_org_rejected(db_session):
 
     duplicate = MatchingRuleTable(
         organization_id=org.id, name=f"DUP-{unique}", method="five_star", created_by=user.id, updated_by=user.id,
+    )
+    session.add(duplicate)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()
+
+
+def test_block_buffer_rule_table_invalid_rule_type_rejected(db_session):
+    session = db_session
+    unique = uuid.uuid4().hex[:8]
+    org, user, _folder = _seed_org_user_folder(session, unique)
+
+    bad_table = BlockBufferRuleTable(
+        organization_id=org.id, name=f"Bad Rule {unique}", rule_no=1,
+        rule_type="not_a_real_type", mode="static", created_by=user.id, updated_by=user.id,
+    )
+    session.add(bad_table)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()
+
+
+def test_block_buffer_rule_table_duplicate_rule_no_in_same_org_rejected(db_session):
+    session = db_session
+    unique = uuid.uuid4().hex[:8]
+    org, user, _folder = _seed_org_user_folder(session, unique)
+
+    first = BlockBufferRuleTable(
+        organization_id=org.id, name=f"Rule-{unique}-A", rule_no=42,
+        rule_type="block", mode="static", created_by=user.id, updated_by=user.id,
+    )
+    session.add(first)
+    session.flush()
+
+    duplicate = BlockBufferRuleTable(
+        organization_id=org.id, name=f"Rule-{unique}-B", rule_no=42,
+        rule_type="buffer", mode="dynamic", created_by=user.id, updated_by=user.id,
     )
     session.add(duplicate)
     with pytest.raises(IntegrityError):

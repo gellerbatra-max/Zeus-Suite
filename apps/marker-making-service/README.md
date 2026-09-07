@@ -77,6 +77,23 @@ toggle (below) the same way as a `cutter_stripe_needed` key — neither needed a
     real piece silhouette to clip against yet.
 - `app/synthetic_geometry.py` — deterministic placeholder piece dimensions (Pattern Design doesn't
   exist yet, so there's no real silhouette geometry to nest).
+- `app/api/block_buffer.py` — §1.6 Fuse-blocking. Block/buffer rule tables are a thin proxy over the
+  platform's `/block-buffer-rule-tables` CRUD (no interpretation needed — just L/T/R/B amounts and a
+  static/dynamic mode). Fuse blocks are where this service does real work: `_compute_bounds` fetches
+  a marker's current placements (`GET /markers/{id}/pieces`) and computes the tight axis-aligned
+  bounding box of the member pieces' *current* `placement_data.x/y/width/height` — the platform never
+  computes this itself, consistent with it not interpreting `placement_data` anywhere else.
+  `POST /markers/{id}/fuse-blocks` takes a flat `piece_ids` list (not group-then-place — see the
+  frontend's "draft" workaround for why) and a `block_amount`/`reduce_amount`, computes bounds once,
+  and stores the result; `PATCH` re-supplies `piece_ids` to force a bounds recompute (e.g. after
+  dragging a member piece) or just adjusts `block_amount`/`reduce_amount` in place. `notch_depth`
+  (`block_amount - reduce_amount`, the depth of the cutter's Op-Stop notch per §1.4/1.6) is computed
+  here and returned as a plain field — the platform's `fuse_blocks` table doesn't store it, since
+  it's fully derived from the two amounts it does store. **Simplifications, explicit**: rectangular
+  blocks only (matches the platform's `shape` CHECK constraint), no rotation support (a block is
+  always axis-aligned even if a member piece is rotated on the canvas — bounds use the piece's raw
+  `x/y/width/height`, not its rotated silhouette), and no Create Fusing Marker / Cut Net Parts (both
+  need a `cutter_parameter_table`, which doesn't exist yet — §1.10/Phase 3 territory).
 
 ## Local setup
 
@@ -96,10 +113,15 @@ pytest                              # run tests (spawns a real data-platform-api
 
 ## Deferred (flagged, not built here)
 
-Fuse-blocking (§1.6), Engine A layrule replay (§1.2/§1.5), a real placement-producing solver,
-bundle-management UI (§1.3 — the platform's `bundles` API already exists but has no UI here), and
-the rest of §1.1's manual-nesting toolset beyond place/move/rotate/flip/unplace (butt, align, marry,
-bump lines, measure, etc.).
+Engine A layrule replay (§1.2/§1.5), a real placement-producing solver, bundle-management UI
+(§1.3 — the platform's `bundles` API already exists but has no UI here), and the rest of §1.1's
+manual-nesting toolset beyond place/move/rotate/flip/unplace (butt, align, marry, bump lines,
+measure, etc.).
+
+Within fuse-blocking (§1.6) specifically: manual-trace (polygon) block shape — only rectangles,
+per the platform's `shape` CHECK; Create Fusing Marker and Cut Net Parts, both blocked on a
+`cutter_parameter_table` that doesn't exist anywhere yet; and full Lay-Limits-Table-driven rule
+assignment (rules are assigned per-piece by hand here, not derived from a lay-limits chain).
 
 Within matching (§1.4) specifically, Slice 2 built a scoped first pass — method selection
 (Standard/5-Star), the matching rules table with Standard's offset entry, Define Stripes geometry,

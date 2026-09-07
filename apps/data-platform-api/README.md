@@ -122,16 +122,32 @@ own) — fixed in the same pass across every entity router, not scoped to search
   geometry this platform stores as an opaque blob (Pattern Design's/Marker Making's domain, not
   this platform's). `tests/test_reports.py` covers both paths plus permission enforcement.
 
-- `alembic/versions/0006_add_matching_tables.py` + `app/api/matching.py` — Marker Making Phase 2
-  Slice 2's one platform-side schema addition: `dmp.matching_rule_tables` (plaid/stripe matching
-  config: method, plaid/stripe repeat, and opaque `offsets_json`/`stripe_definitions_json`/
-  `stripe_marks_json`, mirroring the opaque-payload philosophy `marker_pieces.placement_data`
-  already established) plus `markers.matching_rule_table_id`. This platform stores and returns
-  that JSON faithfully — it does not interpret stripe/offset structure; that's
-  [`marker-making-service`](../marker-making-service)'s job. `tests/test_matching.py` covers CRUD,
-  the sub-resource full-replace endpoints, marker linkage (including a cross-org guard), the
-  delete-while-referenced conflict, and permission enforcement; `tests/test_constraints.py` covers
-  the `method` CHECK and `(organization_id, name)` UNIQUE constraints.
+- `alembic/versions/0006_add_matching_tables.py` (+`0007`/`0008` follow-ons) + `app/api/matching.py`
+  — Marker Making Phase 2 Slice 2's platform-side schema: `dmp.matching_rule_tables` (plaid/stripe
+  matching config: method, plaid/stripe repeat, and opaque `offsets_json`/`stripe_definitions_json`/
+  `stripe_marks_json`/`weave_line_json`/`material_pattern_json`, mirroring the opaque-payload
+  philosophy `marker_pieces.placement_data` already established) plus `markers.matching_rule_table_id`.
+  This platform stores and returns that JSON faithfully — it does not interpret stripe/offset
+  structure, or the material-pattern image bytes (uploaded via the same SAS-URL flow as piece/
+  marker versions, §3.3); that interpretation is [`marker-making-service`](../marker-making-service)'s
+  job. `tests/test_matching.py` covers CRUD, the sub-resource full-replace endpoints, marker linkage
+  (including a cross-org guard), the delete-while-referenced conflict, the material-pattern upload/
+  visibility/delete flow against real Azurite, and permission enforcement; `tests/test_constraints.py`
+  covers the `method` CHECK and `(organization_id, name)` UNIQUE constraints.
+
+- `alembic/versions/0009_add_block_buffer_and_fuse_block_tables.py` + `app/api/block_buffer.py` —
+  Marker Making §1.6 (block/buffer/fuse-blocking, Gerber depth): `dmp.block_buffer_rule_tables`
+  (per-side L/T/R/B amount config, keyed by `rule_no`, `UNIQUE(organization_id, rule_no)`) and
+  `dmp.fuse_blocks` (groups pieces on one marker into a rectangular fusing block — `x/y/width/height`
+  are the tight bounding box of the member pieces' *current* placements, computed by
+  marker-making-service since it interprets `placement_data` and this platform doesn't;
+  `piece_placement_ids` is opaque jsonb, same philosophy as everywhere else). Scoped to rectangular
+  blocks only — no manual-trace polygon shape yet (the `shape` column is
+  `CHECK (shape IN ('rectangle'))`, forward-compatible with a later `'manual'` value). Create Fusing
+  Marker and Cut Net Parts are deferred — both need a `cutter_parameter_table`, which doesn't exist
+  yet (§1.10 / Phase 3 territory). `tests/test_block_buffer.py` covers rule-table CRUD, fuse-block
+  create/patch/delete/delete-all, and permission enforcement; `tests/test_constraints.py` covers the
+  `rule_type` CHECK and `(organization_id, rule_no)` UNIQUE constraint.
 
 ## Useful commands
 

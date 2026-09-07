@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import matching, nesting_jobs, workspace
+from app.api import block_buffer, matching, nesting_jobs, workspace
 from app.platform_client import PlatformError
 
 app = FastAPI(title="marker-making-service", version="0.1.0")
@@ -44,3 +44,4 @@ def healthz():
 app.include_router(workspace.router)
 app.include_router(nesting_jobs.router)
 app.include_router(matching.router)
+app.include_router(block_buffer.router)

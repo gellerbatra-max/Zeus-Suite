@@ -6,8 +6,9 @@ import type { CanvasPlacement } from './components/MarkerCanvas'
 import { overlapAmount } from './geometry'
 import { NestingJobPanel } from './components/NestingJobPanel'
 import { MatchingPanel } from './components/MatchingPanel'
+import { FuseBlockPanel } from './components/FuseBlockPanel'
 import { api, ApiError } from './api/client'
-import type { MatchGuidanceOut, WeaveLine, WorkspaceOut } from './api/types'
+import type { BlockBufferRuleTableOut, FuseBlockOut, MatchGuidanceOut, WeaveLine, WorkspaceOut } from './api/types'
 
 // The platform's marker.fabric_width isn't wired into the workspace payload for this slice --
 // the boundary here is a fixed visual reference, not tied to a real fabric width yet.
@@ -38,6 +39,7 @@ function toCanvasPlacement(workspace: WorkspaceOut, pieceId: string): CanvasPlac
         ? { angleDeg: data.weave_line_angle_deg, offset: data.weave_line_offset }
         : null,
     stripeIndependentInSet: data.stripe_independent_in_set ?? false,
+    blockBufferRuleNo: data.block_buffer_rule_no ?? null,
   }
 }
 
@@ -55,6 +57,8 @@ export default function App() {
   const [guidance, setGuidance] = useState<{ pieceId: string; result: MatchGuidanceOut } | null>(null)
   const [weaveLine, setWeaveLine] = useState<WeaveLine | null>(null)
   const [materialPattern, setMaterialPattern] = useState<{ visible: boolean; downloadUrl: string } | null>(null)
+  const [fuseBlocks, setFuseBlocks] = useState<FuseBlockOut[]>([])
+  const [blockBufferRuleTables, setBlockBufferRuleTables] = useState<BlockBufferRuleTableOut[]>([])
   const lastGuidanceAt = useRef(0)
 
   const openMarker = async () => {
@@ -73,6 +77,8 @@ export default function App() {
       setGuidance(null)
       setWeaveLine(null)
       setMaterialPattern(null)
+      setFuseBlocks([])
+      setBlockBufferRuleTables([])
     } catch (err) {
       setWorkspace(null)
       setError(err instanceof ApiError ? err.message : String(err))
@@ -86,6 +92,11 @@ export default function App() {
   const selectedCutterStripeNeeded = placements.find((p) => p.pieceId === selectedPieceId)?.cutterStripeNeeded ?? true
   const selectedStripeIndependentInSet =
     placements.find((p) => p.pieceId === selectedPieceId)?.stripeIndependentInSet ?? false
+  const selectedBlockBufferRuleNo = placements.find((p) => p.pieceId === selectedPieceId)?.blockBufferRuleNo ?? null
+
+  const blockBufferRuleTypes: Record<number, string> = Object.fromEntries(
+    blockBufferRuleTables.map((r) => [r.rule_no, r.rule_type]),
+  )
 
   const selectedPieceCenter = (() => {
     const selected = placements.find((p) => p.pieceId === selectedPieceId)
@@ -111,6 +122,7 @@ export default function App() {
         pieceId, pieceCode: piece.piece_code, x, y, rotationDeg: 0, flipX: false, flipY: false,
         width: piece.width, height: piece.height, sizeCode: 'M', quantity: 1, stripeMarkId: null,
         cutterStripeNeeded: true, weaveLineOverride: null, stripeIndependentInSet: false,
+        blockBufferRuleNo: null,
       },
     ])
     setSelectedPieceId(pieceId)
@@ -143,6 +155,10 @@ export default function App() {
 
   const handleSetWeaveLineOverride = (pieceId: string, override: { angleDeg: number; offset: number } | null) => {
     setPlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, weaveLineOverride: override } : p)))
+  }
+
+  const handleAssignBlockBufferRule = (pieceId: string, ruleNo: number | null) => {
+    setPlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, blockBufferRuleNo: ruleNo } : p)))
   }
 
   const handleDragMove = (pieceId: string, x: number, y: number) => {
@@ -187,6 +203,7 @@ export default function App() {
             weave_line_angle_deg: p.weaveLineOverride?.angleDeg ?? null,
             weave_line_offset: p.weaveLineOverride?.offset ?? null,
             stripe_independent_in_set: p.stripeIndependentInSet,
+            block_buffer_rule_no: p.blockBufferRuleNo,
           },
         })),
       })
@@ -245,6 +262,8 @@ export default function App() {
               guidance={guidance}
               weaveLine={weaveLine}
               materialPatternUrl={materialPattern?.visible ? materialPattern.downloadUrl : null}
+              fuseBlocks={fuseBlocks}
+              blockBufferRuleTypes={blockBufferRuleTypes}
             />
             {guidance?.result.message && <p className="matching-warning">{guidance.result.message}</p>}
             {selectedOverlaps.length > 0 && (
@@ -303,6 +322,16 @@ export default function App() {
             onWeaveLineChanged={setWeaveLine}
             onSetWeaveLineOverride={handleSetWeaveLineOverride}
             onMaterialPatternChanged={setMaterialPattern}
+          />
+
+          <FuseBlockPanel
+            markerId={workspace.marker_id}
+            placements={placements}
+            selectedPieceId={selectedPieceId}
+            selectedPieceBlockBufferRuleNo={selectedBlockBufferRuleNo}
+            onAssignBlockBufferRule={handleAssignBlockBufferRule}
+            onFuseBlocksChanged={setFuseBlocks}
+            onRuleTablesChanged={setBlockBufferRuleTables}
           />
 
           <NestingJobPanel markerId={workspace.marker_id} orderId={workspace.order_id} />
