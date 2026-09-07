@@ -148,6 +148,7 @@ def patch_marker(
     for field in (
         "marker_name", "fabric_width", "matching_method", "matching_rule_table_id",
         "marker_length", "ply_count", "utilization_pct", "fabric_weight_per_unit_area",
+        "splice_min_length", "splice_max_length", "splice_margin", "splice_separation",
     ):
         value = getattr(body, field)
         if value is not None:

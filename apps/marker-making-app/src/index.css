@@ -79,7 +79,7 @@ input {
 .app__main {
   flex: 1;
   display: grid;
-  grid-template-columns: 220px 1fr 300px 280px 240px 240px 280px 260px;
+  grid-template-columns: 220px 1fr 300px 280px 240px 240px 280px 260px 260px;
   gap: 20px;
   padding: 20px;
   align-items: start;
@@ -669,4 +669,70 @@ input {
 .bundle-panel__bundle-actions button {
   padding: 3px 6px;
   font-size: 0.72rem;
+}
+
+/* Splice panel (Sec 1.8) */
+
+.splice-panel {
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.splice-panel h3 {
+  margin-top: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.splice-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.splice-panel__section:last-child {
+  border-bottom: none;
+}
+
+.splice-panel__section label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.splice-panel__inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.splice-panel__inline-form input {
+  flex: 1;
+  min-width: 70px;
+}
+
+.splice-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.splice-panel__list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
 }

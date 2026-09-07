@@ -2,7 +2,7 @@ import type { DragEvent } from 'react'
 import { useEffect, useState } from 'react'
 import { Arrow, Circle, Group, Image as KonvaImage, Layer, Line, Rect, Stage, Text } from 'react-konva'
 import type { KonvaEventObject } from 'konva/lib/Node'
-import type { FuseBlockOut, MatchGuidanceOut, WeaveLine } from '../api/types'
+import type { FuseBlockOut, MatchGuidanceOut, SpliceMarkOut, WeaveLine } from '../api/types'
 import { boundingBoxesOverlap, weaveLineSegment } from '../geometry'
 
 // Define Material / Material Pattern (Sec 1.4, "Show Marker's Pattern"): loads the fabric
@@ -70,6 +70,7 @@ interface Props {
   blockBufferRuleTypes?: Record<number, string>
   targetLength?: number | null
   bundleGroups?: BundleGroupBox[]
+  spliceMarks?: SpliceMarkOut[]
 }
 
 export function MarkerCanvas({
@@ -88,6 +89,7 @@ export function MarkerCanvas({
   blockBufferRuleTypes = {},
   targetLength = null,
   bundleGroups = [],
+  spliceMarks = [],
 }: Props) {
   const materialImage = useHtmlImage(materialPatternUrl)
   const selectedBundleId = placements.find((p) => p.pieceId === selectedPieceId)?.bundleId ?? null
@@ -283,6 +285,27 @@ export function MarkerCanvas({
           <Layer listening={false}>
             <Line points={[targetLength, 0, targetLength, markerHeight]} stroke="#8a2be2" strokeWidth={1.5} dash={[4, 4]} />
             <Text text="TARGET" x={targetLength + 4} y={4} fontSize={10} fill="#8a2be2" />
+          </Layer>
+        )}
+        {spliceMarks.length > 0 && (
+          // Splice marks (Sec 1.8): a shaded amber band across the full fabric-width axis
+          // spanning [start_x, end_x] -- the fabric-roll overlap zone. Manual marks get a solid
+          // border, auto-generated ones a dashed one, so "manual entries take priority" is
+          // visually obvious without reading the panel list.
+          <Layer listening={false}>
+            {spliceMarks.map((mark) => (
+              <Group key={mark.id}>
+                <Rect
+                  x={mark.start_x} y={0} width={mark.end_x - mark.start_x} height={markerHeight}
+                  fill="rgba(217, 119, 6, 0.15)" stroke="#d97706" strokeWidth={1}
+                  dash={mark.source === 'auto' ? [5, 3] : undefined}
+                />
+                <Text
+                  text={mark.roll_id ?? mark.source}
+                  x={mark.start_x + 2} y={markerHeight - 14} fontSize={9} fill="#d97706"
+                />
+              </Group>
+            ))}
           </Layer>
         )}
         {guidance && guidance.result.targets.length > 0 && (

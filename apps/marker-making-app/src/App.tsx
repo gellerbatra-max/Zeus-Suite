@@ -11,8 +11,11 @@ import { MaterialPanel } from './components/MaterialPanel'
 import { TransformPanel } from './components/TransformPanel'
 import { BundlePanel } from './components/BundlePanel'
 import type { BundleGroupBox } from './components/MarkerCanvas'
+import { SplicePanel } from './components/SplicePanel'
 import { api, ApiError } from './api/client'
-import type { BlockBufferRuleTableOut, FuseBlockOut, MatchGuidanceOut, WeaveLine, WorkspaceOut } from './api/types'
+import type {
+  BlockBufferRuleTableOut, FuseBlockOut, MatchGuidanceOut, SpliceMarkOut, WeaveLine, WorkspaceOut,
+} from './api/types'
 
 // The length axis (X) has no stored dimension -- a marker's length is however long its placed
 // pieces need, so this boundary stays a fixed visual reference. The fabric-width axis (Y) *is*
@@ -68,6 +71,7 @@ export default function App() {
   const [blockBufferRuleTables, setBlockBufferRuleTables] = useState<BlockBufferRuleTableOut[]>([])
   const [targetLength, setTargetLength] = useState<number | null>(null)
   const [fabricWidth, setFabricWidth] = useState<number | null>(null)
+  const [spliceMarks, setSpliceMarks] = useState<SpliceMarkOut[]>([])
   const lastGuidanceAt = useRef(0)
 
   const openMarker = async () => {
@@ -90,6 +94,7 @@ export default function App() {
       setBlockBufferRuleTables([])
       setTargetLength(null)
       setFabricWidth(ws.fabric_width)
+      setSpliceMarks([])
     } catch (err) {
       setWorkspace(null)
       setError(err instanceof ApiError ? err.message : String(err))
@@ -383,6 +388,7 @@ export default function App() {
               blockBufferRuleTypes={blockBufferRuleTypes}
               targetLength={targetLength}
               bundleGroups={bundleGroups}
+              spliceMarks={spliceMarks}
             />
             {guidance?.result.message && <p className="matching-warning">{guidance.result.message}</p>}
             {selectedOverlaps.length > 0 && (
@@ -488,6 +494,8 @@ export default function App() {
             onResetBundleOrientation={handleResetBundleOrientation}
             onSetBundleQuantity={handleSetBundleQuantity}
           />
+
+          <SplicePanel markerId={workspace.marker_id} onSpliceMarksChanged={setSpliceMarks} />
 
           <NestingJobPanel markerId={workspace.marker_id} orderId={workspace.order_id} />
         </div>

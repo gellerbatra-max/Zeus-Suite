@@ -13,6 +13,7 @@ from app.api import (
     matching,
     material,
     nesting_jobs,
+    splice,
     workspace,
 )
 from app.platform_client import PlatformError
@@ -54,3 +55,4 @@ app.include_router(matching.router)
 app.include_router(block_buffer.router)
 app.include_router(material.router)
 app.include_router(marker_transform.router)
+app.include_router(splice.router)

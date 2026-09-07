@@ -147,6 +147,21 @@ toggle (below) the same way as a `cutter_stripe_needed` key — neither needed a
   client-side geometry in [`marker-making-app`](../marker-making-app), the same architecture
   choice this app already made for whole-marker Flip X/Y/XY. `tests/test_workspace_and_jobs.py`
   covers `bundle_id` round-tripping through save/reload.
+- `app/api/splice.py` — §1.8 Splice marks / fabric-roll handling. Settings (`min_length`/
+  `max_length`/`margin`/`separation`) and manual mark CRUD are thin proxies over the platform's
+  `splice_min_length`/etc. marker columns and `dmp.splice_marks`. `POST .../splice/auto` is the
+  real logic, since **no fabric-roll entity exists anywhere in this platform** (no roll length, no
+  roll inventory): it takes `roll_length` directly on the request as an honest stand-in for "how
+  long is one roll of fabric," places a mark at every multiple of it along the computed marker
+  length (the same X-axis length convention `material.py` already uses), sized
+  `clamp(margin*2, min_length, max_length)` and centered on the boundary, skipping any boundary
+  within `separation` of either marker edge. Each generated mark gets `roll_id=f"roll-{n+1}"` --
+  forward-compatible with §1.13's bundle-tag `lot/roll_id` once that's built. Regenerating deletes
+  and recreates only `source='auto'` marks (via the platform's `source`-filtered delete-all),
+  leaving manual marks untouched, per "manual entries take priority over auto-generated ones."
+  `tests/test_splice.py` covers settings round-trip, manual CRUD, the auto-placement math against
+  hand-calculated boundaries, the edge-separation skip, and that regenerating twice doesn't
+  duplicate marks or disturb a manual one.
 
 ## Local setup
 
@@ -183,6 +198,13 @@ Piece-on-Marker display configuration, and the "Add Bundle/Delete Bundle beyond 
 order" distinction (every bundle here is equally deletable — there's no separate "order-driven vs.
 manually added" provenance tracked). The 500-bundle/5,000-piece cap is a fixed client-side warning,
 not a real per-marker-configurable, server-enforced ceiling.
+
+Within splice marks (§1.8) specifically: real fabric-roll length lookup (there's no roll-inventory
+entity anywhere in this platform, so `roll_length` is a manual per-call input, not read from real
+data); the "start covered by the new roll, end by the original roll" physical semantics (this
+implementation treats a mark as one symmetric zone, not two distinct roll-attribution edges); and
+automatically re-running Splice/Automatic after every piece add/move/remove (it's an explicit
+button here, not a live recompute).
 
 Within fuse-blocking (§1.6) specifically: manual-trace (polygon) block shape — only rectangles,
 per the platform's `shape` CHECK; Create Fusing Marker and Cut Net Parts, both blocked on a

@@ -213,3 +213,22 @@ export interface TransformSettingsOut {
 export interface ChangeWidthOut {
   fabric_width: number
 }
+
+// -- Splice marks / fabric-roll handling (Sec 1.8, new) -------------------------------------------
+
+export interface SpliceMarkOut {
+  id: string
+  marker_id: string
+  start_x: number
+  end_x: number
+  source: string
+  roll_id: string | null
+  version: number
+}
+
+export interface SpliceSettingsOut {
+  min_length: number | null
+  max_length: number | null
+  margin: number | null
+  separation: number | null
+}

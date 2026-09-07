@@ -15,6 +15,7 @@ from app.models import (
     Order,
     Organization,
     Piece,
+    SpliceMark,
     Style,
     User,
     WorkflowStatus,
@@ -278,6 +279,52 @@ def test_order_shrink_pct_at_or_below_negative_100_rejected(db_session):
         created_by=user.id, updated_by=user.id,
     )
     session.add(bad_order)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()
+
+
+def test_splice_mark_invalid_source_rejected(db_session):
+    session = db_session
+    unique = uuid.uuid4().hex[:8]
+    org, user, folder = _seed_org_user_folder(session, unique)
+
+    marker = Marker(
+        organization_id=org.id, folder_id=folder.id, marker_code=f"MRK-{unique}", marker_name="Splice Marker",
+        workflow_status_id=session.query(WorkflowStatus).filter_by(entity_type="marker", code="unmade").one().id,
+        created_by=user.id, updated_by=user.id,
+    )
+    session.add(marker)
+    session.flush()
+
+    bad_mark = SpliceMark(
+        organization_id=org.id, marker_id=marker.id, start_x=1.0, end_x=2.0, source="not_a_real_source",
+        created_by=user.id, updated_by=user.id,
+    )
+    session.add(bad_mark)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()
+
+
+def test_splice_mark_end_x_not_after_start_x_rejected(db_session):
+    session = db_session
+    unique = uuid.uuid4().hex[:8]
+    org, user, folder = _seed_org_user_folder(session, unique)
+
+    marker = Marker(
+        organization_id=org.id, folder_id=folder.id, marker_code=f"MRK-{unique}", marker_name="Splice Marker",
+        workflow_status_id=session.query(WorkflowStatus).filter_by(entity_type="marker", code="unmade").one().id,
+        created_by=user.id, updated_by=user.id,
+    )
+    session.add(marker)
+    session.flush()
+
+    bad_mark = SpliceMark(
+        organization_id=org.id, marker_id=marker.id, start_x=5.0, end_x=5.0, source="manual",
+        created_by=user.id, updated_by=user.id,
+    )
+    session.add(bad_mark)
     with pytest.raises(IntegrityError):
         session.flush()
     session.rollback()

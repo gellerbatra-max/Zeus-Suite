@@ -192,6 +192,21 @@ own) — fixed in the same pass across every entity router, not scoped to search
   see [`marker-making-app`](../marker-making-app)'s README. The real MES bundle-tag table stays
   exactly as it is; nothing here touches it.
 
+- `alembic/versions/0012_add_splice_marks.py` + `app/api/splice.py` — Marker Making §1.8
+  (splice marks / fabric-roll handling): four nullable "Settings/Splice" columns on `markers`
+  (`splice_min_length`/`splice_max_length`/`splice_margin`/`splice_separation` — a single
+  per-marker settings group, not a named/reusable table the way `matching_rule_tables`/
+  `block_buffer_rule_tables` are, since the plan doc never calls this one a "rule table") and a
+  new `dmp.splice_marks` table, the same audited/versioned/soft-deleted shape as `fuse_blocks`:
+  `start_x`/`end_x` spanning the fabric-roll overlap zone, `source` (`'auto'` vs `'manual'` —
+  "manual entries take priority over auto-generated ones," so
+  [`marker-making-service`](../marker-making-service)'s regenerate step only ever deletes/recreates
+  `'auto'` rows), and an optional opaque `roll_id` text field — the value §1.13's bundle-tag
+  `lot/roll_id` is meant to be sourced from eventually, carried as plain text since no fabric-roll
+  entity exists anywhere in this platform to foreign-key against. `tests/test_splice.py` covers
+  mark CRUD, the settings fields, `source`-filtered delete-all, and permission enforcement;
+  `tests/test_constraints.py` covers the `source` CHECK and the `end_x > start_x` CHECK.
+
 ## Useful commands
 
 ```bash

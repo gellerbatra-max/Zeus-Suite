@@ -375,3 +375,46 @@ class ChangeWidthRequest(BaseModel):
 
 class ChangeWidthOut(BaseModel):
     fabric_width: float
+
+
+# -- Splice marks / fabric-roll handling (Sec 1.8) -------------------------------------------------
+
+
+class SpliceMarkOut(BaseModel):
+    id: str
+    marker_id: str
+    start_x: float
+    end_x: float
+    source: str
+    roll_id: str | None
+    version: int
+
+
+class SpliceMarkCreateRequest(BaseModel):
+    start_x: float
+    end_x: float
+    roll_id: str | None = None
+
+
+class SpliceMarkPatchRequest(BaseModel):
+    start_x: float | None = None
+    end_x: float | None = None
+    roll_id: str | None = None
+
+
+class SpliceSettingsOut(BaseModel):
+    min_length: float | None
+    max_length: float | None
+    margin: float | None
+    separation: float | None
+
+
+class SpliceSettingsPatchRequest(BaseModel):
+    min_length: float | None = None
+    max_length: float | None = None
+    margin: float | None = None
+    separation: float | None = None
+
+
+class AutoSpliceRequest(BaseModel):
+    roll_length: float

@@ -15,6 +15,7 @@ from app.models import (
     MatchingRuleTable,
     Order,
     Piece,
+    SpliceMark,
     Style,
     WorkflowStatus,
 )
@@ -75,6 +76,10 @@ def marker_out(session: Session, marker: Marker) -> schemas.MarkerOut:
         ply_count=marker.ply_count,
         utilization_pct=marker.utilization_pct,
         fabric_weight_per_unit_area=marker.fabric_weight_per_unit_area,
+        splice_min_length=marker.splice_min_length,
+        splice_max_length=marker.splice_max_length,
+        splice_margin=marker.splice_margin,
+        splice_separation=marker.splice_separation,
         matching_method=marker.matching_method,
         matching_rule_table_id=marker.matching_rule_table_id,
         current_version_id=marker.current_version_id,
@@ -132,6 +137,20 @@ def fuse_block_out(row: FuseBlock) -> schemas.FuseBlockOut:
         piece_placement_ids=row.piece_placement_ids,
         block_amount=row.block_amount,
         reduce_amount=row.reduce_amount,
+        version=row.version,
+        created_at=row.created_at,
+        created_by=row.created_by,
+    )
+
+
+def splice_mark_out(row: SpliceMark) -> schemas.SpliceMarkOut:
+    return schemas.SpliceMarkOut(
+        id=row.id,
+        marker_id=row.marker_id,
+        start_x=row.start_x,
+        end_x=row.end_x,
+        source=row.source,
+        roll_id=row.roll_id,
         version=row.version,
         created_at=row.created_at,
         created_by=row.created_by,

@@ -190,6 +190,10 @@ class MarkerPatch(BaseModel):
     ply_count: int | None = None
     utilization_pct: float | None = Field(default=None, ge=0, le=100)
     fabric_weight_per_unit_area: float | None = None
+    splice_min_length: float | None = None
+    splice_max_length: float | None = None
+    splice_margin: float | None = None
+    splice_separation: float | None = None
 
 
 class MarkerOut(BaseModel):
@@ -203,6 +207,10 @@ class MarkerOut(BaseModel):
     ply_count: int | None
     utilization_pct: float | None
     fabric_weight_per_unit_area: float | None
+    splice_min_length: float | None
+    splice_max_length: float | None
+    splice_margin: float | None
+    splice_separation: float | None
     matching_method: str | None
     matching_rule_table_id: uuid.UUID | None
     current_version_id: uuid.UUID | None
@@ -366,6 +374,34 @@ class FuseBlockOut(BaseModel):
     piece_placement_ids: list[str]
     block_amount: float
     reduce_amount: float
+    version: int
+    created_at: datetime
+    created_by: uuid.UUID
+
+
+# -- Splice marks (Marker Making Sec 1.8) --------------------------------------------------------
+
+
+class SpliceMarkCreate(BaseModel):
+    start_x: float
+    end_x: float
+    source: str = "manual"
+    roll_id: str | None = None
+
+
+class SpliceMarkPatch(BaseModel):
+    start_x: float | None = None
+    end_x: float | None = None
+    roll_id: str | None = None
+
+
+class SpliceMarkOut(BaseModel):
+    id: uuid.UUID
+    marker_id: uuid.UUID
+    start_x: float
+    end_x: float
+    source: str
+    roll_id: str | None
     version: int
     created_at: datetime
     created_by: uuid.UUID

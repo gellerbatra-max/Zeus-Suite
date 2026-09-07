@@ -27,6 +27,7 @@ from app.models.matching import MatchingRuleTable
 from app.models.orders import Order, OrderLine
 from app.models.pieces import Piece, PieceVersion
 from app.models.reports import ReportDefinition, ReportRun
+from app.models.splice import SpliceMark
 from app.models.styles import Style, StylePiece
 from app.models.workflow import WorkflowStatus, WorkflowTransition
 
@@ -54,6 +55,7 @@ __all__ = [
     "Role",
     "RolePermission",
     "ServiceAccount",
+    "SpliceMark",
     "Style",
     "StylePiece",
     "User",

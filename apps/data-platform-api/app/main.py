@@ -23,6 +23,7 @@ from app.api import (
     pieces,
     reports,
     search,
+    splice,
     styles,
     workflow,
 )
@@ -76,6 +77,7 @@ app.include_router(styles.router)
 app.include_router(markers.router)
 app.include_router(matching.router)
 app.include_router(block_buffer.router)
+app.include_router(splice.router)
 app.include_router(orders.router)
 app.include_router(workflow.router)
 app.include_router(audit_log.router)

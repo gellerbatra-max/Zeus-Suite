@@ -129,6 +129,14 @@ service's README for the full architecture).
   enforced as a fixed client-side warning — see
   [`marker-making-service`](../marker-making-service)'s README for why it isn't a real
   server-enforced, per-marker-configurable ceiling.
+- **Splice panel** (`SplicePanel.tsx`, §1.8) — a settings form (min/max mark length, margin,
+  separation, saved onto the marker), "Splice / Automatic" (enter a roll length by hand — there's
+  no real fabric-roll data anywhere in this platform — and click "Regenerate Auto Splices" to call
+  the service's placement algorithm), a manual-add mini-form (start/end/roll id), and a list of all
+  marks sorted by position with per-mark Delete plus Delete All. On canvas, each mark renders as a
+  shaded amber band spanning the full fabric-width axis at `[start_x, end_x]` — dashed border for
+  `source: 'auto'`, solid for `'manual'`, so which marks survive a regenerate is visually obvious
+  without opening the panel — labeled with its `roll_id` (or just its source, if none was given).
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -288,3 +296,18 @@ persisted with `quantity=5`, their flipped `x`/`y`, `flip_x=false`/`rotation_deg
 and a shared `bundle_id="bundle-1"`. Clicked "Unplace / Return" and confirmed the bundle
 disappeared from the list and "Unplaced Pieces" count went from 1 to 3 — both former bundle
 members returned to the tray alongside the piece that was never placed.
+
+**Splice marks**: seeded a marker with `fabric_width=200` and the same two placements as the
+material-calc/flip checks above (marker length by hand: 110). Entered splice settings
+(min length `1.0`, max length `5.0`, margin `0.5`, separation `2.0`), saved, and confirmed via
+`GET /markers/{id}` (direct platform call) that all four values persisted. Entered roll length
+`40` and clicked "Regenerate Auto Splices" — hand calc: boundaries at `40` and `80` (both within
+`[2, 108]`), mark length `clamp(0.5×2, 1.0, 5.0) = 1.0` — confirmed the panel listed exactly
+`39.50–40.50 (auto, roll-2)` and `79.50–80.50 (auto, roll-3)`, and via the Konva scene graph that
+the canvas rendered two dashed amber bands at exactly `x=39.5`/`x=79.5`, width `1`, spanning the
+full canvas height, labeled `roll-2`/`roll-3`. Added a manual mark (`1.00–1.50`, roll id
+`hand-added`) and confirmed it appeared with a `(manual, hand-added)` label. Clicked "Regenerate
+Auto Splices" again and confirmed the mark count stayed at exactly 3 (no duplication) with the
+manual mark's `id` unchanged — verified directly via `GET /markers/{id}/splice-marks` (the auto
+marks got fresh ids, confirming they were deleted and recreated rather than left stale). Clicked
+"Delete All" and confirmed the list and the platform API both went empty.
