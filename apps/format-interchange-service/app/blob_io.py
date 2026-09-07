@@ -26,6 +26,9 @@ EXPORTS_CONTAINER = "format-interchange-exports"
 # from exports since an import artifact isn't a piece version either, and isn't downloadable as a
 # plain file the way an export is (the Import Viewer reads it back as structured JSON, not a link).
 IMPORTS_CONTAINER = "format-interchange-imports"
+# Raw source files uploaded to a migration batch (Step 3) -- kept so Step 4's per-item "resolve
+# and re-run" (Sec 2.6) can re-parse the original bytes without asking the caller to re-upload.
+MIGRATIONS_CONTAINER = "format-interchange-migrations"
 
 _service_client: BlobServiceClient | None = None
 
@@ -80,6 +83,16 @@ def upload_import_bundle(blob_key: str, payload: bytes) -> None:
 
 def download_import_bundle(blob_key: str) -> bytes:
     return get_blob_service_client().get_blob_client(IMPORTS_CONTAINER, blob_key).download_blob().readall()
+
+
+def upload_migration_source(blob_key: str, payload: bytes) -> None:
+    _ensure_container(MIGRATIONS_CONTAINER)
+    container = get_blob_service_client().get_container_client(MIGRATIONS_CONTAINER)
+    container.upload_blob(blob_key, payload, overwrite=True, content_settings=ContentSettings(content_type="text/plain"))
+
+
+def download_migration_source(blob_key: str) -> bytes:
+    return get_blob_service_client().get_blob_client(MIGRATIONS_CONTAINER, blob_key).download_blob().readall()
 
 
 def download_url_for_export(blob_key: str, expiry_minutes: int = 15) -> str:

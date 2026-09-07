@@ -47,3 +47,34 @@ class ImportProfileOut(BaseModel):
     name: str
     trading_partner: str | None = None
     params: dict = {}
+
+
+class MigrationFindingOut(BaseModel):
+    id: str
+    code: str
+    severity: str
+    message: str
+    geometry_ref: dict = {}
+
+
+class MigrationItemOut(BaseModel):
+    id: str
+    batch_id: str
+    source_style_ref: str
+    status: str
+    needs_review: bool
+    target_piece_id: str | None = None
+    converted_geometry: dict | None = None
+    source_summary: dict | None = None
+    error_detail: str | None = None
+    findings: list[MigrationFindingOut] = []
+
+
+class MigrationBatchOut(BaseModel):
+    id: str
+    source_system: str
+    status: str
+    auto_sort_flagged: bool
+    chunk_count: int
+    item_count: int
+    counts: dict[str, int] = {}

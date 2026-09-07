@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Text
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, Text
 from sqlalchemy.dialects.postgresql import JSONB, TIMESTAMP, UUID
 from sqlalchemy.sql import func
 
@@ -52,4 +52,75 @@ class ImportProfile(Base):
     trading_partner = Column(Text, nullable=True)
     params = Column(JSONB, nullable=False, server_default="{}")
     created_by = Column(UUID(as_uuid=True), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+
+class MigrationBatch(Base):
+    """One bulk-migration run (Sec 4/Sec 7 Step 3) -- a Style-Converter-equivalent batch of
+    uploaded legacy source files, classified but (Step 3) not yet committed to the platform;
+    committing is Step 4's job, alongside the Migration Viewer triage loop.
+
+    `selection` deliberately does not carry a wildcard pattern or source-system connector, per
+    Sec 2.1's "Select style(s) to convert, with wildcard support" -- this suite has no actual
+    predecessor-system connector to select against, so the uploaded files themselves ARE the
+    selection; `selection` instead records `{"file_count": N}` for audit/report purposes.
+    """
+
+    __tablename__ = "migration_batch"
+
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    organization_id = Column(UUID(as_uuid=True), nullable=False)
+    source_system = Column(Text, nullable=False)
+    selection = Column(JSONB, nullable=False, server_default="{}")
+    # pending (created, not yet run) -> running -> completed. Synchronous single-request
+    # processing (same deviation as export/import -- see app/api/migration.py's docstring), so
+    # "running" is only ever observed if a request crashes mid-batch.
+    status = Column(Text, nullable=False, server_default="pending")
+    auto_sort_flagged = Column(Boolean, nullable=False, server_default="true")
+    chunk_count = Column(Integer, nullable=False, server_default="1")
+    created_by = Column(UUID(as_uuid=True), nullable=False)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+
+class MigrationItem(Base):
+    """One style/piece within a migration batch (Sec 4)."""
+
+    __tablename__ = "migration_item"
+
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    batch_id = Column(UUID(as_uuid=True), ForeignKey("format_interchange.migration_batch.id"), nullable=False)
+    source_style_ref = Column(Text, nullable=False)
+    target_piece_id = Column(UUID(as_uuid=True), nullable=True)
+    # pending | converted | converted_with_warning | error | blocked | resolved
+    status = Column(Text, nullable=False, server_default="pending")
+    needs_review = Column(Boolean, nullable=False, server_default="false")
+    # Raw uploaded source bytes, kept for Step 4's "resolve in-tool and re-run just this item"
+    # (Sec 2.6) -- not part of Sec 4's own field list, added here since a re-run genuinely needs
+    # the original bytes back, the same class of pragmatic addition Step 2 made for target_piece_id.
+    source_storage_key = Column(Text, nullable=True)
+    # Converted geometry + parsed-source summary are small structured JSON (a few KB per piece),
+    # so they're stored directly rather than round-tripped through blob storage like the raw
+    # source above -- the item-detail endpoint (Sec 5) needs to serve them on every read.
+    converted_geometry = Column(JSONB, nullable=True)
+    source_summary = Column(JSONB, nullable=True)
+    error_detail = Column(Text, nullable=True)
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+
+class MigrationFinding(Base):
+    """One error/warning/diff-highlight against a migration item (Sec 4), from the catalogues in
+    Sec 2.3 (errors) / Sec 2.4 (warnings). `resolved_at`/`resolved_by` stay null until Step 4's
+    resolve/accept-warning actions exist -- this table is written here but not yet mutated after
+    creation."""
+
+    __tablename__ = "migration_finding"
+
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    item_id = Column(UUID(as_uuid=True), ForeignKey("format_interchange.migration_item.id"), nullable=False)
+    code = Column(Text, nullable=False)
+    severity = Column(Text, nullable=False)  # error | warning
+    message = Column(Text, nullable=False)
+    geometry_ref = Column(JSONB, nullable=False, server_default="{}")
+    resolved_at = Column(TIMESTAMP(timezone=True), nullable=True)
+    resolved_by = Column(UUID(as_uuid=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())

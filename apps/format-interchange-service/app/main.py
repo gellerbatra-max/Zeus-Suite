@@ -1,6 +1,6 @@
-"""format-interchange-service: IGES piece export + import (Steps 1-2 of format_interchange_plan.md
-Sec 7). Unlike pattern-design-service/marker-making-service, this app owns a real database (Sec 4)
--- see app/db.py's docstring."""
+"""format-interchange-service: IGES piece export + import + legacy migration batch classification
+(Steps 1-3 of format_interchange_plan.md Sec 7). Unlike pattern-design-service/marker-making-service,
+this app owns a real database (Sec 4) -- see app/db.py's docstring."""
 
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
@@ -8,7 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import export, import_, import_profiles
+from app.api import export, import_, import_profiles, migration
 from app.platform_client import PlatformError
 
 app = FastAPI(title="format-interchange-service", version="0.1.0")
@@ -45,3 +45,4 @@ def healthz():
 app.include_router(export.router)
 app.include_router(import_.router)
 app.include_router(import_profiles.router)
+app.include_router(migration.router)

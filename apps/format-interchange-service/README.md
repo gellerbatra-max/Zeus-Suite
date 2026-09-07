@@ -1,17 +1,20 @@
 # format-interchange-service
 
-Backend for the Format Interchange & Legacy Migration Utility, Steps 1-2 of Phase 3 (see
+Backend for the Format Interchange & Legacy Migration Utility, Steps 1-3 of Phase 3 (see
 [`docs/planning/04_format_interchange/format_interchange_plan.md`](../../docs/planning/04_format_interchange/format_interchange_plan.md)
-Sec 7): single-piece IGES export ("the smallest complete slice") and single-piece IGES import
-(the reader, the Sec 1.2 option pipeline, Import Profiles, and a staged-commit Import Viewer).
+Sec 7): single-piece IGES export ("the smallest complete slice"), single-piece IGES import (the
+reader, the Sec 1.2 option pipeline, Import Profiles, and a staged-commit Import Viewer), and the
+Legacy Migration batch pipeline's classification stage (batch upload, per-item conversion, the
+full Sec 2.3/2.4 error/warning catalogue, and a CSV/JSON findings report -- no Viewer or commit
+yet, that's Step 4).
 
 ## How this differs from every other app built so far
 
 `pattern-design-service` and `marker-making-service` are pure thin clients with no database of
 their own. This service genuinely owns one (Sec 4: "This service's own database ... holds only
-interchange-specific bookkeeping"): `interchange_job` (this slice), with `import_profile`/
-`migration_batch`/`migration_item`/`migration_finding` reserved for Steps 2-4. It's the first app
-in this delivery built with its own Alembic/SQLAlchemy setup alongside `data-platform-api`'s.
+interchange-specific bookkeeping"): `interchange_job`, `import_profile`, `migration_batch`,
+`migration_item`, `migration_finding`. It's the first app in this delivery built with its own
+Alembic/SQLAlchemy setup alongside `data-platform-api`'s.
 
 It also talks **directly to `data-platform-api`**, never to `pattern-design-service` (Sec 0: "It
 never talks to Pattern Design or Marker Making directly"). A piece's geometry document -- the JSON
@@ -62,8 +65,32 @@ uses against its own backend, just one hop further out.
   held `staged` (Sec 1.4's Import Viewer gate) pending an explicit `/commit` call.
 - `app/api/import_profiles.py` -- `GET/POST /import-profiles`, `PUT /import-profiles/{id}` (Sec
   1.3's saved parameter presets, replacing `IGES.INI`).
+- `app/migration_sources.py` -- legacy source format dispatch (Sec 6: "one parser module per
+  supported source format... new source formats are added as new parser modules, not new pipeline
+  logic"). Step 3 supports exactly one format, `iges`, reusing Step 2's reader/pipeline verbatim;
+  DXF/AAMA-ASTM/proprietary-binary parsers are new modules for a future slice -- there's no real
+  spec or sample data for either in this suite yet.
+- `app/migration_checks.py` -- the Sec 2.3 (error) / Sec 2.4 (warning) catalogues as individual
+  check functions, run against converted geometry plus a caller-supplied `LegacyMetadata` bag. Most
+  catalogue rows need legacy-system data this geometry model has no concept of (corner-treatment
+  types, plaid/stripe match lines, grade-rule-table references, size-synonym tables, grade-axis
+  assignments, flip/rotation flags) and this suite has no grade-rule-table registry to resolve
+  against either -- see the module's own docstring for why the caller supplies this explicitly
+  instead of it being inferred, and why that's the natural extension point a future DXF/AAMA-ASTM
+  parser would populate automatically. `self_intersection` and `multiple_grain_lines` are the two
+  catalogue rows produced from real signals instead (the import pipeline's own validation gate and
+  its own multi-grain-line detection, respectively, the latter re-emitted at `error` severity here
+  since a legacy-batch item shouldn't silently auto-resolve an ambiguous grain line the way a
+  manually-reviewed single-piece import can).
+- `app/api/migration.py` -- `POST /migration/batches` (multipart file upload, one item per file),
+  `POST .../run` (classifies every still-`pending` item -- idempotent in the sense that a re-run
+  only reprocesses items Step 4's resolve action would reset back to `pending`), `GET .../{id}`
+  (status counts), `GET .../{id}/items[/{item_id}]`, `GET .../{id}/report.csv|.json`. The remaining
+  Sec 5 endpoints (`resolve`/`block`/`accept-warning`/`commit`) are Step 4's job -- this slice
+  classifies and reports, it doesn't fix or commit anything to the platform yet.
 - `alembic/` -- `format_interchange` schema: `interchange_job` (Step 1) plus (Step 2)
-  `import_profile` and `interchange_job.target_piece_id`/nullable `piece_id`.
+  `import_profile` and `interchange_job.target_piece_id`/nullable `piece_id`, plus (Step 3)
+  `migration_batch`/`migration_item`/`migration_finding`.
 
 ## Local setup
 
@@ -98,15 +125,25 @@ same rather than assuming port 8000 / the `zeus_suite` database are yours alone.
 
 ## Deferred (flagged, not built here)
 
-Everything past Step 2 of Sec 7's phased plan: the Legacy Migration batch pipeline and its full
-error/warning catalogue (Step 3), the Migration Viewer and triage-and-fix loop (Step 4), and
-load/audit/RBAC hardening (Step 5). Within Step 1: batch export (`POST /export/iges/batch`),
-`entity_profile` target-system curve preferences (no curve/spline entity exists yet to have
-preferences about), and a dedicated worker service-account identity for pushing the platform `Job`
-through its real `heartbeat`/`complete` lifecycle (see `app/api/export.py`'s docstring). Within
-Step 2: `infer_grade_points`/`numbering_scheme` grade-point inference (no grading integration
-exists in this service), `max_arc_points`/`max_spline_points`/`force_sharp_corners` (no arc/spline
-entity or curve-smoothing exists to act on -- these produce an `option_not_implemented` warning if
+Everything past Step 3 of Sec 7's phased plan: the Migration Viewer and triage-and-fix loop (Step
+4 -- side-by-side overlay, Measure, Snap-to-Geometry, the Sec 2.5 diff-highlight catalogue, and the
+`resolve`/`block`/`accept-warning`/`commit` endpoints), and load/audit/RBAC hardening (Step 5).
+Within Step 1: batch export (`POST /export/iges/batch`), `entity_profile` target-system curve
+preferences (no curve/spline entity exists yet to have preferences about), and a dedicated worker
+service-account identity for pushing the platform `Job` through its real `heartbeat`/`complete`
+lifecycle (see `app/api/export.py`'s docstring). Within Step 2: `infer_grade_points`/
+`numbering_scheme` grade-point inference (no grading integration exists in this service),
+`max_arc_points`/`max_spline_points`/`force_sharp_corners` (no arc/spline entity or
+curve-smoothing exists to act on -- these produce an `option_not_implemented` warning if
 requested), and the Konva-based visual Import Viewer (this slice's viewer is a structured-JSON
 summary + warnings list in `format-interchange-app`, not a canvas rendering -- that's Step 4's
-Migration Viewer work, reused here per the plan's own note that it's a shared component).
+Migration Viewer work, reused here per the plan's own note that it's a shared component). Within
+Step 3: real chunked/async batch processing at scale (`chunk_count` is computed and stored, but
+`/run` still processes every pending item synchronously in one request, same deviation as Steps
+1-2 -- Step 5's own "load-test batch migration at realistic legacy-library scale" is where this
+gets hardened), any legacy source format other than IGES (Sec 6's per-format parser-module
+extension point is in place via `app/migration_sources.py`, but only `iges` is registered), a
+frontend panel for batches (the plan scopes the Migration Viewer itself to Step 4; Step 3's own
+API surface has no UI-facing endpoints beyond the JSON/CSV report), and the `resolve`/`block`/
+`accept-warning`/`commit` endpoints (Sec 5's own phased split puts these under Step 4's triage
+loop, not Step 3's classification pass).
