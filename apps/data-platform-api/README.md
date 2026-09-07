@@ -177,6 +177,21 @@ own) — fixed in the same pass across every entity router, not scoped to search
   covers the new `PATCH` fields and the percentage-range rejection at the API layer;
   `tests/test_constraints.py` covers the same rejection at the DB layer.
 
+- Marker Making §1.3 (bundle management): deliberately **no platform changes at all**. This
+  platform's existing `dmp.bundles` table (`app/models/bundles.py`, `POST/GET /bundles`,
+  `POST /bundles/{id}/cut-event`, etc. — see `app/api/orders.py`) is a *different* concept from
+  what §1.3 needs: it's one row per (order, marker, piece, size, ply-range) — Gerber's post-cut
+  bundle-tag/RFID/MES-tracking record, built in an earlier milestone before this Marker Making
+  work started. §1.3's canvas-side concept — "group all of one garment's pieces so they can be
+  selected/moved/flipped together while nesting" — is a *pre-cut, nesting-time* grouping with no
+  piece-level FK, no RFID/QR/ply-range fields, and no cut-event lifecycle; the plan doc's own
+  §2 schema sketch even proposes a differently-shaped `bundle` table (`bundle_no, model_id,
+  garment_qty, orientation, fold_side` — no `piece_id` at all) without reconciling it against this
+  platform's existing table. Rather than overload one concept onto the other, the nesting-time
+  grouping rides entirely inside `marker_pieces.placement_data` as an opaque `bundle_id` string —
+  see [`marker-making-app`](../marker-making-app)'s README. The real MES bundle-tag table stays
+  exactly as it is; nothing here touches it.
+
 ## Useful commands
 
 ```bash

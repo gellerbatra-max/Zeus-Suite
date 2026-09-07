@@ -137,6 +137,16 @@ toggle (below) the same way as a `cutter_stripe_needed` key — neither needed a
   leave slack, which the operator has to notice and fix by hand. `app/api/workspace.py`'s
   `WorkspaceOut` now also carries `fabric_width`, so the frontend can size its canvas from the
   marker's real value instead of a hardcoded constant.
+- §1.3 Bundle management needs **no dedicated router at all** in this service. `bundle_id` is
+  just one more field on `PlacementData` (`app/schemas.py`) — an opaque passthrough exactly like
+  `stripe_mark_id`/`block_buffer_rule_no`, riding through the existing `GET`/`PUT
+  /markers/{id}/workspace` unchanged. This platform's real `bundles` table (RFID/QR/MES tracking)
+  is a genuinely different concept at a different granularity — see
+  [`data-platform-api`](../data-platform-api)'s README for why it isn't reused here — so every
+  bundle *operation* (create, unplace, flip-as-a-unit, reset orientation, set quantity) is pure
+  client-side geometry in [`marker-making-app`](../marker-making-app), the same architecture
+  choice this app already made for whole-marker Flip X/Y/XY. `tests/test_workspace_and_jobs.py`
+  covers `bundle_id` round-tripping through save/reload.
 
 ## Local setup
 
@@ -156,8 +166,7 @@ pytest                              # run tests (spawns a real data-platform-api
 
 ## Deferred (flagged, not built here)
 
-Engine A layrule replay (§1.2/§1.5), a real placement-producing solver, bundle-management UI
-(§1.3 — the platform's `bundles` API already exists but has no UI here), and the rest of §1.1's
+Engine A layrule replay (§1.2/§1.5), a real placement-producing solver, and the rest of §1.1's
 manual-nesting toolset beyond place/move/rotate/flip/unplace (butt, align, marry, bump lines,
 measure, etc.).
 
@@ -166,6 +175,14 @@ markers into one), Merge, Fix Marker Length/auto-continue, per-piece pre-placeme
 (distinct from the marker-wide Shrink and Stretch built here), post-hoc `zoom` scaling, Reference
 Marker, and Associate (live link back to a Pattern Design source file — there's no Pattern Design
 app yet to link to).
+
+Within bundle management (§1.3) specifically: the piece attribute model (single/left/right/paired
+identity), the fold orientation family (tubular/bookfold-specific, no fold concept exists here),
+set numbering/coloring as a concept distinct from bundle grouping, per-piece-category
+Piece-on-Marker display configuration, and the "Add Bundle/Delete Bundle beyond the original
+order" distinction (every bundle here is equally deletable — there's no separate "order-driven vs.
+manually added" provenance tracked). The 500-bundle/5,000-piece cap is a fixed client-side warning,
+not a real per-marker-configurable, server-enforced ceiling.
 
 Within fuse-blocking (§1.6) specifically: manual-trace (polygon) block shape — only rectangles,
 per the platform's `shape` CHECK; Create Fusing Marker and Cut Net Parts, both blocked on a

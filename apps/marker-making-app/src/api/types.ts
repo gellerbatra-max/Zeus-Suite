@@ -14,6 +14,7 @@ export interface PlacementData {
   weave_line_offset?: number | null
   stripe_independent_in_set?: boolean
   block_buffer_rule_no?: number | null
+  bundle_id?: string | null
 }
 
 export interface WorkspacePiece {

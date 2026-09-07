@@ -17,6 +17,7 @@ class PlacementData(BaseModel):
     weave_line_offset: float | None = None
     stripe_independent_in_set: bool = False
     block_buffer_rule_no: int | None = None
+    bundle_id: str | None = None
 
 
 class PlacementIn(BaseModel):

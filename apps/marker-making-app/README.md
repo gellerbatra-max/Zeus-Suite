@@ -108,6 +108,27 @@ service's README for the full architecture).
   isn't one), and "Apply to Placements" calls the service's stand-in endpoint that scales the
   current canvas geometry right now and refreshes it in place — a warning line makes explicit that
   clicking Apply twice double-scales, since nothing tracks whether it's already been applied.
+- **Bundle panel** (`BundlePanel.tsx`, §1.3) — groups placed pieces (one garment, one size) by a
+  shared `bundle_id` riding inside `placement_data`, the same opaque-passthrough pattern as
+  `stripe_mark_id`/`blockBufferRuleNo` — no server round trip for any bundle operation, all
+  persisted on the next Save. Uses the same sequential "draft" workflow fuse-blocking established
+  (select a piece, "Add Selected Piece", repeat, "Create Bundle") since there's still no canvas
+  multi-select; the auto-generated bundle number is just "how many distinct bundle ids already
+  exist, plus one." **Validation**: Create is rejected if the draft pieces don't all share the
+  same `sizeCode` (a bundle is one garment, one size) or if the selected piece is already in a
+  bundle (unplace it first to move it). Each bundle's row offers Select (sets the canvas selection
+  to its first member — every other member gets a lighter highlight fill so the "whole bundle"
+  still reads visually, since there's no true multi-selection), Flip X/Y/XY (mirrors just that
+  bundle's own members within their own combined bounding box — same math as the whole-marker flip
+  above, scoped down), Reset Orientation (rotation back to 0°, both flips cleared), Unplace/Return
+  (removes every member from the canvas back to the tray in one action — the plan's "Bundle/
+  Unplace" and "Return Bundle" collapse into a single action here since there's no piece-splitting
+  to merge back together first), and Set Quantity (bulk-sets every member's placement quantity).
+  On canvas, each bundle renders as a dashed indigo rectangle around its tight combined bounding
+  box labeled "Bundle N (size)", with a small indigo dot on each member piece. A 500-bundle cap is
+  enforced as a fixed client-side warning — see
+  [`marker-making-service`](../marker-making-service)'s README for why it isn't a real
+  server-enforced, per-marker-configurable ceiling.
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -248,3 +269,22 @@ anchored at the combined bbox's top-left corner `(10,5)`) — and that the canva
 new geometry immediately, without a manual reload. Entered fabric width `300` under "Change Width
 of Marker", clicked "Change Width", and confirmed both the Konva stage height (`300`) and
 `GET /markers/{id}`'s `fabric_width` updated immediately.
+
+**Bundle management**: seeded a marker with three pieces, placed two (`x=10,y=20,w=50,h=40` and
+`x=80,y=5,w=30,h=60`, same coordinates as the fuse-blocking/flip checks above) leaving one
+unplaced. Selected each placed piece in turn and used "Add Selected Piece" to queue both into the
+bundle draft, then "Create Bundle" — confirmed "Bundle 1 (M) — BND-P1, BND-P2" appeared in the
+list, and via the Konva scene graph that the dashed indigo group rectangle was drawn at exactly
+`x=6, y=1, w=108, h=68` (the pieces' combined bbox `x=10,y=5,w=100,h=60` inflated by 4px on every
+side) labeled "Bundle 1 (M)", with an indigo dot on both member pieces. Clicked "Flip X" and
+confirmed via the Konva scene graph that both pieces moved to exactly `x=60`/`x=10` respectively
+with `scaleX=-1` — matching the same bbox-mirror hand calculation as the whole-marker flip check.
+Clicked "Select" and confirmed the first member got the primary blue selection fill while the
+second got the lighter bundle-mate highlight fill, both distinct from an unrelated piece's default
+fill. Clicked "Reset Orientation" and confirmed both pieces' `scaleX`/`scaleY` returned to `1`
+without moving their (already-flipped) positions. Entered quantity `5` and clicked "Set Quantity",
+then Saved, and confirmed via `GET /markers/{id}/pieces` (direct platform call) that both pieces
+persisted with `quantity=5`, their flipped `x`/`y`, `flip_x=false`/`rotation_deg=0` (post-reset),
+and a shared `bundle_id="bundle-1"`. Clicked "Unplace / Return" and confirmed the bundle
+disappeared from the list and "Unplaced Pieces" count went from 1 to 3 — both former bundle
+members returned to the tray alongside the piece that was never placed.

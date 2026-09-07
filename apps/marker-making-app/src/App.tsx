@@ -9,6 +9,8 @@ import { MatchingPanel } from './components/MatchingPanel'
 import { FuseBlockPanel } from './components/FuseBlockPanel'
 import { MaterialPanel } from './components/MaterialPanel'
 import { TransformPanel } from './components/TransformPanel'
+import { BundlePanel } from './components/BundlePanel'
+import type { BundleGroupBox } from './components/MarkerCanvas'
 import { api, ApiError } from './api/client'
 import type { BlockBufferRuleTableOut, FuseBlockOut, MatchGuidanceOut, WeaveLine, WorkspaceOut } from './api/types'
 
@@ -44,6 +46,7 @@ function toCanvasPlacement(workspace: WorkspaceOut, pieceId: string): CanvasPlac
         : null,
     stripeIndependentInSet: data.stripe_independent_in_set ?? false,
     blockBufferRuleNo: data.block_buffer_rule_no ?? null,
+    bundleId: data.bundle_id ?? null,
   }
 }
 
@@ -130,7 +133,7 @@ export default function App() {
         pieceId, pieceCode: piece.piece_code, x, y, rotationDeg: 0, flipX: false, flipY: false,
         width: piece.width, height: piece.height, sizeCode: 'M', quantity: 1, stripeMarkId: null,
         cutterStripeNeeded: true, weaveLineOverride: null, stripeIndependentInSet: false,
-        blockBufferRuleNo: null,
+        blockBufferRuleNo: null, bundleId: null,
       },
     ])
     setSelectedPieceId(pieceId)
@@ -168,6 +171,79 @@ export default function App() {
   const handleAssignBlockBufferRule = (pieceId: string, ruleNo: number | null) => {
     setPlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, blockBufferRuleNo: ruleNo } : p)))
   }
+
+  // Bundle management (Sec 1.3): a bundle groups several placed pieces (one garment, one size)
+  // by a shared bundleId riding inside placement_data, exactly like stripe_mark_id/
+  // blockBufferRuleNo -- no platform schema change, no server round trip, persisted on the next
+  // Save. There's no canvas multi-select, so grouping uses the same sequential "draft" workflow
+  // BundlePanel already established for fuse-blocking.
+  const nextBundleId = () => {
+    const existing = new Set(placements.map((p) => p.bundleId).filter((id): id is string => id !== null))
+    let n = existing.size + 1
+    while (existing.has(`bundle-${n}`)) n++
+    return `bundle-${n}`
+  }
+
+  const handleCreateBundle = (pieceIds: string[]) => {
+    const bundleId = nextBundleId()
+    setPlacements((prev) => prev.map((p) => (pieceIds.includes(p.pieceId) ? { ...p, bundleId } : p)))
+  }
+
+  const handleUnplaceBundle = (bundleId: string) => {
+    setPlacements((prev) => prev.filter((p) => p.bundleId !== bundleId))
+    setSelectedPieceId((prev) => (placements.find((p) => p.pieceId === prev)?.bundleId === bundleId ? null : prev))
+  }
+
+  // Bundle/Flip (Sec 1.3): same mirror-within-bounding-box math as the whole-marker flip above,
+  // scoped to just this bundle's own members and their own bbox instead of the whole marker's.
+  const handleFlipBundle = (bundleId: string, axis: 'x' | 'y' | 'xy') => {
+    const members = placements.filter((p) => p.bundleId === bundleId)
+    const bbox = computeBoundingBox(members)
+    if (!bbox) return
+    setPlacements((prev) =>
+      prev.map((p) => {
+        if (p.bundleId !== bundleId) return p
+        let { x, y, flipX, flipY } = p
+        if (axis === 'x' || axis === 'xy') {
+          x = bbox.minX + bbox.maxX - p.x - p.width
+          flipX = !p.flipX
+        }
+        if (axis === 'y' || axis === 'xy') {
+          y = bbox.minY + bbox.maxY - p.y - p.height
+          flipY = !p.flipY
+        }
+        return { ...p, x, y, flipX, flipY }
+      }),
+    )
+  }
+
+  const handleResetBundleOrientation = (bundleId: string) => {
+    setPlacements((prev) =>
+      prev.map((p) => (p.bundleId === bundleId ? { ...p, rotationDeg: 0, flipX: false, flipY: false } : p)),
+    )
+  }
+
+  const handleSetBundleQuantity = (bundleId: string, quantity: number) => {
+    setPlacements((prev) => prev.map((p) => (p.bundleId === bundleId ? { ...p, quantity } : p)))
+  }
+
+  const bundleGroups: BundleGroupBox[] = (() => {
+    const byId = new Map<string, CanvasPlacement[]>()
+    for (const p of placements) {
+      if (!p.bundleId) continue
+      const list = byId.get(p.bundleId)
+      if (list) list.push(p)
+      else byId.set(p.bundleId, [p])
+    }
+    return Array.from(byId.entries()).flatMap(([bundleId, members], i) => {
+      const bbox = computeBoundingBox(members)
+      if (!bbox) return []
+      return [{
+        bundleId, label: `Bundle ${i + 1} (${members[0].sizeCode})`,
+        x: bbox.minX, y: bbox.minY, width: bbox.maxX - bbox.minX, height: bbox.maxY - bbox.minY,
+      }]
+    })
+  })()
 
   const handleDragMove = (pieceId: string, x: number, y: number) => {
     const piece = placements.find((p) => p.pieceId === pieceId)
@@ -244,6 +320,7 @@ export default function App() {
             weave_line_offset: p.weaveLineOverride?.offset ?? null,
             stripe_independent_in_set: p.stripeIndependentInSet,
             block_buffer_rule_no: p.blockBufferRuleNo,
+            bundle_id: p.bundleId,
           },
         })),
       })
@@ -305,6 +382,7 @@ export default function App() {
               fuseBlocks={fuseBlocks}
               blockBufferRuleTypes={blockBufferRuleTypes}
               targetLength={targetLength}
+              bundleGroups={bundleGroups}
             />
             {guidance?.result.message && <p className="matching-warning">{guidance.result.message}</p>}
             {selectedOverlaps.length > 0 && (
@@ -398,6 +476,17 @@ export default function App() {
             hasOrder={workspace.order_id != null}
             onFabricWidthChanged={setFabricWidth}
             onWorkspaceApplied={applyWorkspaceGeometry}
+          />
+
+          <BundlePanel
+            placements={placements}
+            selectedPieceId={selectedPieceId}
+            onSelectPiece={setSelectedPieceId}
+            onCreateBundle={handleCreateBundle}
+            onUnplaceBundle={handleUnplaceBundle}
+            onFlipBundle={handleFlipBundle}
+            onResetBundleOrientation={handleResetBundleOrientation}
+            onSetBundleQuantity={handleSetBundleQuantity}
           />
 
           <NestingJobPanel markerId={workspace.marker_id} orderId={workspace.order_id} />

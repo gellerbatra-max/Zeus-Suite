@@ -68,7 +68,7 @@ def test_workspace_load_save_and_status_transition():
                 "placement_data": {
                     "x": 100, "y": 10, "rotation_deg": 90, "flip_x": True, "width": 60, "height": 90,
                     "cutter_stripe_needed": False, "weave_line_angle_deg": 15.0, "weave_line_offset": 42.5,
-                    "stripe_independent_in_set": True,
+                    "stripe_independent_in_set": True, "bundle_id": "bundle-1",
                 },
             },
         ]
@@ -99,6 +99,11 @@ def test_workspace_load_save_and_status_transition():
     # unspecified, same schema-default pattern as cutter_stripe_needed.
     assert placement_by_piece[piece_a["id"]]["placement_data"]["stripe_independent_in_set"] is False
     assert placement_by_piece[piece_b["id"]]["placement_data"]["stripe_independent_in_set"] is True
+    # Bundle management (Sec 1.3): bundle_id is another opaque placement_data passthrough field,
+    # same pattern as stripe_mark_id/block_buffer_rule_no -- grouping into one bundle is entirely
+    # a marker-making-app concept, this service does no interpretation of it.
+    assert placement_by_piece[piece_a["id"]]["placement_data"].get("bundle_id") is None
+    assert placement_by_piece[piece_b["id"]]["placement_data"]["bundle_id"] == "bundle-1"
 
     # Reload independently -- confirms this actually persisted through the real platform API,
     # not just an in-memory echo of the request.

@@ -42,6 +42,16 @@ export interface CanvasPlacement {
   weaveLineOverride: { angleDeg: number; offset: number } | null
   stripeIndependentInSet: boolean
   blockBufferRuleNo: number | null
+  bundleId: string | null
+}
+
+export interface BundleGroupBox {
+  bundleId: string
+  label: string
+  x: number
+  y: number
+  width: number
+  height: number
 }
 
 interface Props {
@@ -59,6 +69,7 @@ interface Props {
   fuseBlocks?: FuseBlockOut[]
   blockBufferRuleTypes?: Record<number, string>
   targetLength?: number | null
+  bundleGroups?: BundleGroupBox[]
 }
 
 export function MarkerCanvas({
@@ -76,8 +87,10 @@ export function MarkerCanvas({
   fuseBlocks = [],
   blockBufferRuleTypes = {},
   targetLength = null,
+  bundleGroups = [],
 }: Props) {
   const materialImage = useHtmlImage(materialPatternUrl)
+  const selectedBundleId = placements.find((p) => p.pieceId === selectedPieceId)?.bundleId ?? null
   const overlapping = new Set<string>()
   for (let i = 0; i < placements.length; i++) {
     for (let j = i + 1; j < placements.length; j++) {
@@ -128,7 +141,13 @@ export function MarkerCanvas({
               <Rect
                 width={p.width}
                 height={p.height}
-                fill={selectedPieceId === p.pieceId ? '#dbe7ff' : '#f6f6f7'}
+                fill={
+                  selectedPieceId === p.pieceId
+                    ? '#dbe7ff'
+                    : selectedBundleId && p.bundleId === selectedBundleId
+                      ? '#ede9fe'
+                      : '#f6f6f7'
+                }
                 stroke={overlapping.has(p.pieceId) ? '#c0392b' : '#555555'}
                 strokeWidth={overlapping.has(p.pieceId) ? 3 : 1}
               />
@@ -168,9 +187,28 @@ export function MarkerCanvas({
                   x={p.width - 18} y={0} fontSize={9} fontStyle="bold" fill="#0f766e"
                 />
               )}
+              {p.bundleId != null && (
+                // Bundle management (Sec 1.3): a small dot marks a piece as part of a bundle
+                // group -- the group's own outline (drawn in the Layer below) is what actually
+                // reads as "these pieces belong together."
+                <Circle x={p.width - 6} y={p.height - 6} radius={4} fill="#6d28d9" stroke="#ffffff" strokeWidth={1} />
+              )}
             </Group>
           ))}
         </Layer>
+        {bundleGroups.length > 0 && (
+          <Layer listening={false}>
+            {bundleGroups.map((group) => (
+              <Group key={group.bundleId}>
+                <Rect
+                  x={group.x - 4} y={group.y - 4} width={group.width + 8} height={group.height + 8}
+                  stroke="#6d28d9" strokeWidth={1.5} dash={[6, 3]}
+                />
+                <Text text={group.label} x={group.x - 4} y={group.y - 16} fontSize={10} fill="#6d28d9" />
+              </Group>
+            ))}
+          </Layer>
+        )}
         {weaveLine?.visible && (
           <Layer listening={false}>
             {(() => {
