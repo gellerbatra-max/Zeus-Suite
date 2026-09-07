@@ -58,6 +58,7 @@ interface Props {
   materialPatternUrl?: string | null
   fuseBlocks?: FuseBlockOut[]
   blockBufferRuleTypes?: Record<number, string>
+  targetLength?: number | null
 }
 
 export function MarkerCanvas({
@@ -74,6 +75,7 @@ export function MarkerCanvas({
   materialPatternUrl,
   fuseBlocks = [],
   blockBufferRuleTypes = {},
+  targetLength = null,
 }: Props) {
   const materialImage = useHtmlImage(materialPatternUrl)
   const overlapping = new Set<string>()
@@ -234,6 +236,15 @@ export function MarkerCanvas({
                 </Group>
               )
             })}
+          </Layer>
+        )}
+        {targetLength != null && (
+          // Target line (Sec 1.7): a dotted marker-length target read from the order's
+          // target_length -- drawn along the length axis (X, the same convention this app's
+          // bite-boundary validation already assumes) so it reads as "cut fabric up to here".
+          <Layer listening={false}>
+            <Line points={[targetLength, 0, targetLength, markerHeight]} stroke="#8a2be2" strokeWidth={1.5} dash={[4, 4]} />
+            <Text text="TARGET" x={targetLength + 4} y={4} fontSize={10} fill="#8a2be2" />
           </Layer>
         )}
         {guidance && guidance.result.targets.length > 0 && (

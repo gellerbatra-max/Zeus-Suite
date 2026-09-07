@@ -79,7 +79,7 @@ input {
 .app__main {
   flex: 1;
   display: grid;
-  grid-template-columns: 220px 1fr 300px 280px 260px;
+  grid-template-columns: 220px 1fr 300px 280px 240px 260px;
   gap: 20px;
   padding: 20px;
   align-items: start;
@@ -466,4 +466,69 @@ input {
 .fuse-block-panel__block-actions button {
   padding: 3px 6px;
   font-size: 0.72rem;
+}
+
+/* Material panel (Sec 1.7) */
+
+.material-panel {
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.material-panel h3 {
+  margin-top: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.material-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.material-panel__section:last-child {
+  border-bottom: none;
+}
+
+.material-panel__section label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.material-panel__readout {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.8rem;
+}
+
+.material-panel__inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.material-panel__inline-form input {
+  flex: 1;
+  min-width: 80px;
+}
+
+.material-panel__result {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin: 0;
 }

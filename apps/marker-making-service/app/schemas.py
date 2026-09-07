@@ -306,3 +306,48 @@ class FuseBlockOut(BaseModel):
     reduce_amount: float
     notch_depth: float
     version: int
+
+
+# -- Material calculation / utilization (Sec 1.7) ------------------------------------------------
+
+
+class MaterialSummaryOut(BaseModel):
+    fabric_width: float | None
+    ply_count: int | None
+    fabric_weight_per_unit_area: float | None
+    marker_length: float | None
+    utilization_pct: float | None
+    computed_marker_length: float | None
+    computed_total_piece_area: float | None
+    computed_total_perimeter: float | None
+    computed_utilization_pct: float | None
+    target_length: float | None
+    target_utilization_pct: float | None
+
+
+class MaterialPatchRequest(BaseModel):
+    ply_count: int | None = None
+    fabric_weight_per_unit_area: float | None = None
+
+
+class OrderTargetPatchRequest(BaseModel):
+    target_length: float | None = None
+    target_utilization_pct: float | None = None
+
+
+class RequiredLengthRequest(BaseModel):
+    target_efficiency_pct: float
+
+
+class RequiredLengthOut(BaseModel):
+    required_length: float
+
+
+class MaterialWeightRequest(BaseModel):
+    weight_per_unit_area: float | None = None
+    plies: int | None = None
+    length: float | None = None
+
+
+class MaterialWeightOut(BaseModel):
+    weight: float

@@ -76,6 +76,22 @@ service's README for the full architecture).
   dashed teal rectangle inflated by `block_amount` around the tight bbox of its member pieces, plus
   a small V-notch at the Op-Stop pause point labeled with the derived notch depth — visual/
   informational only, since no real cut-file pipeline exists yet.
+- **Material panel** (`MaterialPanel.tsx`, §1.7) — reads `GET .../material/summary` on open: a
+  "Live (from current placements)" readout (total piece area/perimeter, marker length needed, and
+  utilization computed fresh every time, before anything is saved) next to a "Stored on marker"
+  readout (the marker's actual `marker_length`/`utilization_pct` columns, which start empty and
+  only change when "Apply Computed Length & Utilization" is clicked — deliberately two different
+  numbers so the panel can show "here's what fits" alongside "here's what was actually committed
+  to"). Ply count and fabric weight-per-unit-area are plain inputs saved immediately (not batched
+  into the main Save button, same immediate-persistence pattern as matching's rule-table linking).
+  A "Target (order)" section sets `target_length`/`target_utilization_pct` on the marker's linked
+  order (disabled with a note when the marker has no order) — the canvas renders the target length
+  as a long dashed purple vertical line labeled "TARGET" at that X position, the length axis this
+  app already uses for bite-boundary validation. "Calculate Efficiency & Marker Length" and
+  "Calculate Material Weight" are pure calculators (no Save button, nothing persists) that call the
+  service's dedicated endpoints and print the result inline. **Deferred**: "Estimate Material"
+  (cap-nesting, per-mode breakdown) and the standalone material-calculation-file what-if tool —
+  see [`marker-making-service`](../marker-making-service)'s README for why.
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -181,3 +197,20 @@ too (the sync). Toggled piece B to "Stripe Set: Independent", added Mark 2, sele
 assigned Mark 2 to it. Saved and confirmed via `GET /markers/{id}/pieces` that piece A now carried
 Mark 2's id while piece B still carried Mark 1's — the independent toggle correctly excluded it
 from being overwritten by the sync.
+
+**Material calculation/utilization**: seeded a marker with `fabric_width=200` and two placed
+pieces at the same coordinates as the fuse-blocking check above (total piece area by hand:
+`50×40 + 30×60 = 3800`; marker length needed: `max(10+50, 80+30) = 110`; utilization:
+`3800/(200×110)×100 = 17.27%`) — opened it and confirmed the "Live" readout showed exactly those
+three numbers before anything was saved, while "Stored on marker" still read `—`/`—` (nothing
+persisted yet). Clicked "Apply Computed Length & Utilization" and confirmed both the panel and
+`GET /markers/{id}` (direct platform call) now showed `marker_length=110`, `utilization_pct=17.27`.
+Entered ply count `10` and weight-per-area `0.02`, saved, and confirmed both round-tripped through
+a page value check and the platform API. Entered target efficiency `50%` under "Calculate
+Efficiency & Marker Length" and got `Required length: 38` (hand calc: `3800/(200×0.5)=38`).
+Clicked "Calculate Material Weight" with no extra input (falls back to the stored ply
+count/weight-per-area/marker length) and got `Weight: 4400` (hand calc:
+`200×110×10×0.02=4400`). Entered target length `150`/target utilization `90` under "Target
+(order)", saved, confirmed via `GET /orders/{id}` that both persisted on the linked order, and
+confirmed via the Konva scene graph that the canvas rendered a dashed purple vertical line at
+exactly `x=150` labeled "TARGET".

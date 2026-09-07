@@ -3,6 +3,7 @@ from sqlalchemy import (
     Date,
     ForeignKey,
     Integer,
+    Numeric,
     SmallInteger,
     Text,
     UniqueConstraint,
@@ -25,6 +26,8 @@ class Order(Base):
     customer = Column(Text)
     due_date = Column(Date)
     total_quantity = Column(Integer, nullable=False, server_default=text("0"))
+    target_length = Column(Numeric(10, 2))
+    target_utilization_pct = Column(Numeric(5, 2))
     workflow_status_id = Column(SmallInteger, ForeignKey("dmp.workflow_statuses.id"), nullable=False)
     search_vector = Column(TSVECTOR)
     created_by = Column(UUID(as_uuid=True), ForeignKey("dmp.users.id"), nullable=False)

@@ -145,7 +145,10 @@ def patch_marker(
             raise bad_request("matching_rule_table_id does not reference a valid matching rule table.")
 
     before = {"marker_name": marker.marker_name, "fabric_width": float(marker.fabric_width) if marker.fabric_width else None}
-    for field in ("marker_name", "fabric_width", "matching_method", "matching_rule_table_id"):
+    for field in (
+        "marker_name", "fabric_width", "matching_method", "matching_rule_table_id",
+        "marker_length", "ply_count", "utilization_pct", "fabric_weight_per_unit_area",
+    ):
         value = getattr(body, field)
         if value is not None:
             setattr(marker, field, value)

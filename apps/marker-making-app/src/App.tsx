@@ -7,6 +7,7 @@ import { overlapAmount } from './geometry'
 import { NestingJobPanel } from './components/NestingJobPanel'
 import { MatchingPanel } from './components/MatchingPanel'
 import { FuseBlockPanel } from './components/FuseBlockPanel'
+import { MaterialPanel } from './components/MaterialPanel'
 import { api, ApiError } from './api/client'
 import type { BlockBufferRuleTableOut, FuseBlockOut, MatchGuidanceOut, WeaveLine, WorkspaceOut } from './api/types'
 
@@ -59,6 +60,7 @@ export default function App() {
   const [materialPattern, setMaterialPattern] = useState<{ visible: boolean; downloadUrl: string } | null>(null)
   const [fuseBlocks, setFuseBlocks] = useState<FuseBlockOut[]>([])
   const [blockBufferRuleTables, setBlockBufferRuleTables] = useState<BlockBufferRuleTableOut[]>([])
+  const [targetLength, setTargetLength] = useState<number | null>(null)
   const lastGuidanceAt = useRef(0)
 
   const openMarker = async () => {
@@ -79,6 +81,7 @@ export default function App() {
       setMaterialPattern(null)
       setFuseBlocks([])
       setBlockBufferRuleTables([])
+      setTargetLength(null)
     } catch (err) {
       setWorkspace(null)
       setError(err instanceof ApiError ? err.message : String(err))
@@ -264,6 +267,7 @@ export default function App() {
               materialPatternUrl={materialPattern?.visible ? materialPattern.downloadUrl : null}
               fuseBlocks={fuseBlocks}
               blockBufferRuleTypes={blockBufferRuleTypes}
+              targetLength={targetLength}
             />
             {guidance?.result.message && <p className="matching-warning">{guidance.result.message}</p>}
             {selectedOverlaps.length > 0 && (
@@ -332,6 +336,12 @@ export default function App() {
             onAssignBlockBufferRule={handleAssignBlockBufferRule}
             onFuseBlocksChanged={setFuseBlocks}
             onRuleTablesChanged={setBlockBufferRuleTables}
+          />
+
+          <MaterialPanel
+            markerId={workspace.marker_id}
+            hasOrder={workspace.order_id != null}
+            onTargetLengthChanged={setTargetLength}
           />
 
           <NestingJobPanel markerId={workspace.marker_id} orderId={workspace.order_id} />

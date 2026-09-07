@@ -149,6 +149,21 @@ own) — fixed in the same pass across every entity router, not scoped to search
   create/patch/delete/delete-all, and permission enforcement; `tests/test_constraints.py` covers the
   `rule_type` CHECK and `(organization_id, rule_no)` UNIQUE constraint.
 
+- `alembic/versions/0010_add_material_calc_fields.py` — Marker Making §1.7 (material calculation /
+  utilization): no new tables this slice, just four nullable numeric columns on schema that already
+  existed — `orders.target_length`/`orders.target_utilization_pct` (order-level: "set once, read
+  back into every marker cut against that order," per the plan doc) and
+  `markers.fabric_weight_per_unit_area` (marker-level, alongside the already-marker-scoped
+  `fabric_width`/`marker_length`/`ply_count`/`utilization_pct` — a marker can use different fabric
+  than its order siblings). `markers.utilization_pct` and the new `target_utilization_pct` both get
+  a `CHECK (... BETWEEN 0 AND 100)` — the first real writer of either field, so the first time an
+  out-of-range value was actually possible. This platform still doesn't compute anything from
+  placement geometry — every one of these fields is opaque storage that
+  [`marker-making-service`](../marker-making-service) reads and writes after doing the actual
+  area/utilization/weight math. `tests/test_material_calc.py` covers the new `PATCH` fields on both
+  `markers` and `orders` plus the percentage-range rejection at the API layer;
+  `tests/test_constraints.py` covers the same range rejection at the DB layer.
+
 ## Useful commands
 
 ```bash

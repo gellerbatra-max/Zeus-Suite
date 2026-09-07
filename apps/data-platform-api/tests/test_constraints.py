@@ -10,9 +10,12 @@ from app.models import (
     BlockBufferRuleTable,
     Bundle,
     Folder,
+    Marker,
     MatchingRuleTable,
+    Order,
     Organization,
     Piece,
+    Style,
     User,
     WorkflowStatus,
 )
@@ -208,6 +211,48 @@ def test_block_buffer_rule_table_duplicate_rule_no_in_same_org_rejected(db_sessi
         rule_type="buffer", mode="dynamic", created_by=user.id, updated_by=user.id,
     )
     session.add(duplicate)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()
+
+
+def test_marker_utilization_pct_out_of_range_rejected(db_session):
+    session = db_session
+    unique = uuid.uuid4().hex[:8]
+    org, user, folder = _seed_org_user_folder(session, unique)
+
+    bad_marker = Marker(
+        organization_id=org.id, folder_id=folder.id, marker_code=f"MRK-{unique}", marker_name="Bad Marker",
+        utilization_pct=101.0,
+        workflow_status_id=session.query(WorkflowStatus).filter_by(entity_type="marker", code="unmade").one().id,
+        created_by=user.id, updated_by=user.id,
+    )
+    session.add(bad_marker)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()
+
+
+def test_order_target_utilization_pct_out_of_range_rejected(db_session):
+    session = db_session
+    unique = uuid.uuid4().hex[:8]
+    org, user, folder = _seed_org_user_folder(session, unique)
+
+    style = Style(
+        organization_id=org.id, folder_id=folder.id, style_number=f"STY-{unique}", style_name="Style",
+        workflow_status_id=session.query(WorkflowStatus).filter_by(entity_type="style", code="draft").one().id,
+        created_by=user.id, updated_by=user.id,
+    )
+    session.add(style)
+    session.flush()
+
+    bad_order = Order(
+        organization_id=org.id, folder_id=folder.id, order_number=f"ORD-{unique}", style_id=style.id,
+        target_utilization_pct=-1.0,
+        workflow_status_id=session.query(WorkflowStatus).filter_by(entity_type="order", code="open").one().id,
+        created_by=user.id, updated_by=user.id,
+    )
+    session.add(bad_order)
     with pytest.raises(IntegrityError):
         session.flush()
     session.rollback()

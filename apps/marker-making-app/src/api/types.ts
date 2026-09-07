@@ -175,3 +175,27 @@ export interface FuseBlockOut {
   notch_depth: number
   version: number
 }
+
+// -- Material calculation / utilization (Sec 1.7, new) -------------------------------------------
+
+export interface MaterialSummaryOut {
+  fabric_width: number | null
+  ply_count: number | null
+  fabric_weight_per_unit_area: number | null
+  marker_length: number | null
+  utilization_pct: number | null
+  computed_marker_length: number | null
+  computed_total_piece_area: number | null
+  computed_total_perimeter: number | null
+  computed_utilization_pct: number | null
+  target_length: number | null
+  target_utilization_pct: number | null
+}
+
+export interface RequiredLengthOut {
+  required_length: number
+}
+
+export interface MaterialWeightOut {
+  weight: number
+}

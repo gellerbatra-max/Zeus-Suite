@@ -28,6 +28,7 @@ class Marker(Base):
     marker_length = Column(Numeric(10, 2))
     ply_count = Column(Integer)
     utilization_pct = Column(Numeric(5, 2))
+    fabric_weight_per_unit_area = Column(Numeric(10, 4))
     matching_method = Column(Text)
     matching_rule_table_id = Column(UUID(as_uuid=True), ForeignKey("dmp.matching_rule_tables.id"), nullable=True)
     current_version_id = Column(UUID(as_uuid=True), ForeignKey("dmp.marker_versions.id"), nullable=True)

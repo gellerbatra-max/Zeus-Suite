@@ -94,6 +94,28 @@ toggle (below) the same way as a `cutter_stripe_needed` key — neither needed a
   always axis-aligned even if a member piece is rotated on the canvas — bounds use the piece's raw
   `x/y/width/height`, not its rotated silhouette), and no Create Fusing Marker / Cut Net Parts (both
   need a `cutter_parameter_table`, which doesn't exist yet — §1.10/Phase 3 territory).
+- `app/api/material.py` — §1.7 Material calculation/utilization. `GET /markers/{id}/material/
+  summary` is the read side: fetches current placements the same way `_compute_bounds` does and
+  sums `width*height*quantity`/`2*(width+height)*quantity` across all of them for total area/
+  perimeter, plus `max(x + width)` for the marker length actually needed to fit everything —
+  along X, the same length-axis convention `matching.py`'s bite-boundary validation already
+  assumes. `computed_utilization_pct = total_area / (fabric_width * computed_marker_length) * 100`
+  when both are available. These "live" numbers are distinct from the marker's *stored*
+  `marker_length`/`utilization_pct` (which start `null` and only change when asked to) —
+  `POST .../material/apply-computed` is the explicit "save this as the marker's real value" step.
+  `PATCH .../material` sets the two plain inputs (`ply_count`, `fabric_weight_per_unit_area`);
+  `PATCH .../material/target` reaches through the marker to its linked order and sets
+  `target_length`/`target_utilization_pct` there (400 if the marker has no order — nowhere to put
+  a target). Two pure-calculation endpoints, neither persists anything: `POST .../material/
+  required-length` ("Calculate Efficiency and Marker Length" per the plan's own wording — given a
+  target efficiency %, what length is needed) and `POST .../material/weight`
+  (`fabric_width * length * plies * weight_per_unit_area`, falling back to the marker's stored
+  values for any argument not supplied). **Deferred**: "Estimate Material" (cap-nesting, a
+  per-mode Normal/Reverse/Interleaving breakdown) and the standalone material-calculation-file
+  what-if tool — both need multiple real nesting variants to compare against each other, which
+  this app's single manual/Engine-B-stub canvas doesn't produce. Piece-level area/perimeter for
+  one selected piece needs no endpoint at all — the frontend already has that piece's width/height
+  locally.
 
 ## Local setup
 
@@ -122,6 +144,13 @@ Within fuse-blocking (§1.6) specifically: manual-trace (polygon) block shape �
 per the platform's `shape` CHECK; Create Fusing Marker and Cut Net Parts, both blocked on a
 `cutter_parameter_table` that doesn't exist anywhere yet; and full Lay-Limits-Table-driven rule
 assignment (rules are assigned per-piece by hand here, not derived from a lay-limits chain).
+
+Within material calculation/utilization (§1.7) specifically: "Estimate Material" (cap-nesting,
+Normal/Reverse/Interleaving per-mode breakdown) and the standalone material-calculation-file
+what-if tool, both needing multiple real nesting variants this app doesn't produce; the target
+line's "set from historical markers of that style" default (targets are entered by hand here, not
+derived from history); and the `U` utilization annotation print code (no plot/annotation system
+exists yet to carry it).
 
 Within matching (§1.4) specifically, Slice 2 built a scoped first pass — method selection
 (Standard/5-Star), the matching rules table with Standard's offset entry, Define Stripes geometry,

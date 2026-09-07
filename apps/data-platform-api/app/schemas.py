@@ -6,7 +6,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class WorkflowStatusOut(BaseModel):
@@ -186,6 +186,10 @@ class MarkerPatch(BaseModel):
     fabric_width: float | None = None
     matching_method: str | None = None
     matching_rule_table_id: uuid.UUID | None = None
+    marker_length: float | None = None
+    ply_count: int | None = None
+    utilization_pct: float | None = Field(default=None, ge=0, le=100)
+    fabric_weight_per_unit_area: float | None = None
 
 
 class MarkerOut(BaseModel):
@@ -198,6 +202,7 @@ class MarkerOut(BaseModel):
     marker_length: float | None
     ply_count: int | None
     utilization_pct: float | None
+    fabric_weight_per_unit_area: float | None
     matching_method: str | None
     matching_rule_table_id: uuid.UUID | None
     current_version_id: uuid.UUID | None
@@ -380,6 +385,8 @@ class OrderCreate(BaseModel):
 class OrderPatch(BaseModel):
     customer: str | None = None
     due_date: date | None = None
+    target_length: float | None = None
+    target_utilization_pct: float | None = Field(default=None, ge=0, le=100)
 
 
 class OrderOut(BaseModel):
@@ -390,6 +397,8 @@ class OrderOut(BaseModel):
     customer: str | None
     due_date: date | None
     total_quantity: int
+    target_length: float | None
+    target_utilization_pct: float | None
     workflow_status: WorkflowStatusOut
     version: int
     created_at: datetime
