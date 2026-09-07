@@ -32,12 +32,15 @@ import math
 import uuid
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, File, Form, Query, UploadFile
+from fastapi import APIRouter, Depends, File, Form, Query, Request, UploadFile
 from fastapi.responses import Response
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from app.audit import record_audit
 from app.blob_io import download_migration_source, upload_migration_source
-from app.deps import get_actor, get_db, get_platform_client
+from app.config import settings
+from app.deps import get_db, get_platform_client
 from app.errors import bad_request, not_found
 from app.migration_checks import Finding, LegacyMetadata, classify_item
 from app.migration_diff import compute_diff
@@ -49,13 +52,13 @@ from app.migration_sources import (
     parse_source,
 )
 from app.models import MigrationBatch, MigrationFinding, MigrationItem
+from app.permissions import require_migrate, require_review
 from app.platform_client import PlatformClient
 from app.platform_commit import commit_geometry_to_platform
 from app.schemas import MigrationBatchOut, MigrationFindingOut, MigrationItemOut
 
 router = APIRouter(tags=["migration"])
 
-CHUNK_THRESHOLD = 2000  # Sec 2.1: Gerber's own documented ~2,000-style chunking guidance
 BLOCKING_CODES = {"source_grading_corrupt"}  # Sec 2.3: "does require a corrected source export"
 # Sec 2.6 #4: "Only converted, converted_with_warning (accepted), and resolved items commit to the
 # platform... blocked items remain queued" -- so a `blocked` item is allowed to coexist with a
@@ -65,13 +68,21 @@ PIECE_COMMIT_STATUSES = {"converted", "resolved", "converted_with_warning"}
 
 
 @router.post("/migration/batches", response_model=MigrationBatchOut)
-def create_migration_batch(
-    files: list[UploadFile] = File(...),
-    options: str = Form("{}"),
+async def create_migration_batch(
+    request: Request,
     client: PlatformClient = Depends(get_platform_client),
-    actor: dict = Depends(get_actor),
+    actor: dict = Depends(require_migrate),
     db: Session = Depends(get_db),
 ):
+    """Parses the multipart body manually (rather than FastAPI's usual `files: list[UploadFile] =
+    File(...)` parameter injection) so it can raise Starlette's own `MultiPartParser` default cap
+    of 1000 files per request (Sec 7 Step 5's own load-test at "thousands of styles" hit this
+    immediately) -- FastAPI's automatic UploadFile-list injection has no way to pass a higher
+    `max_files` through to the underlying parser."""
+    form = await request.form(max_files=20000, max_fields=20000)
+    files = form.getlist("files")
+    options = str(form.get("options", "{}"))
+
     if not files:
         raise bad_request("At least one file is required.")
     try:
@@ -95,7 +106,7 @@ def create_migration_batch(
         source_system=source_system,
         selection={"file_count": len(files), "source_format": source_format, "target_collection": target_collection},
         auto_sort_flagged=auto_sort_flagged,
-        chunk_count=math.ceil(len(files) / CHUNK_THRESHOLD),
+        chunk_count=math.ceil(len(files) / settings.migration_chunk_size),
         created_by=uuid.UUID(actor["id"]),
     )
     db.add(batch)
@@ -104,7 +115,7 @@ def create_migration_batch(
     for f in files:
         item_id = uuid.uuid4()
         blob_key = f"{actor['organization_id']}/{batch_id}/{item_id}.src"
-        upload_migration_source(blob_key, f.file.read())
+        upload_migration_source(blob_key, await f.read())
         db.add(
             MigrationItem(
                 id=item_id,
@@ -115,6 +126,10 @@ def create_migration_batch(
         )
     db.flush()
 
+    record_audit(
+        db, actor, "migration.batch_create", "migration_batch", batch.id,
+        {"file_count": len(files), "source_system": source_system},
+    )
     return _batch_out(batch, db)
 
 
@@ -122,11 +137,22 @@ def create_migration_batch(
 def run_migration_batch(
     batch_id: str,
     metadata_by_filename: str = Form("{}"),
+    actor: dict = Depends(require_migrate),
     db: Session = Depends(get_db),
 ):
     """`metadata_by_filename`: JSON `{"<source_style_ref>": {<LegacyMetadata fields>}}` -- a real
     DXF/AAMA-ASTM parser would populate this per item automatically; see migration_checks.py's
-    module docstring for why this slice takes it from the caller instead."""
+    module docstring for why this slice takes it from the caller instead.
+
+    Processes at most `settings.migration_chunk_size` still-`pending` items per call (Sec 7 Step
+    5: "load-test batch migration at realistic legacy-library scale... thousands of styles").
+    `batch.status` becomes `completed` only once no `pending` items remain; a batch with more
+    pending items than one chunk's worth is left `running` with `remaining_pending` > 0, and the
+    caller is expected to call `/run` again to process the next chunk -- this bounds each
+    request's own work to a fixed amount regardless of total batch size, the same "chunk into
+    sub-jobs" idea Sec 2.1 describes, scoped to one HTTP request per chunk rather than a genuine
+    background worker (still deferred for the same reason as Steps 1-4: no dedicated worker
+    service-account -- see app/api/export.py's docstring)."""
     batch = db.get(MigrationBatch, uuid.UUID(batch_id))
     if batch is None:
         raise not_found("Migration batch")
@@ -135,13 +161,27 @@ def run_migration_batch(
     except json.JSONDecodeError:
         raise bad_request("`metadata_by_filename` must be a JSON object.") from None
 
-    pending_items = db.query(MigrationItem).filter_by(batch_id=batch.id, status="pending").all()
+    pending_items = (
+        db.query(MigrationItem)
+        .filter_by(batch_id=batch.id, status="pending")
+        .order_by(MigrationItem.created_at)
+        .limit(settings.migration_chunk_size)
+        .all()
+    )
     for item in pending_items:
         metadata_dict = raw_metadata_by_filename.get(item.source_style_ref, {})
         _convert_and_classify_item(db, item, batch, metadata_dict)
 
-    batch.status = "completed"
+    # This session is autoflush=False (app/db.py), so the status updates just made above aren't
+    # visible to a fresh COUNT query until explicitly flushed.
     db.flush()
+    remaining_pending = db.query(MigrationItem).filter_by(batch_id=batch.id, status="pending").count()
+    batch.status = "completed" if remaining_pending == 0 else "running"
+    db.flush()
+    record_audit(
+        db, actor, "migration.batch_run", "migration_batch", batch.id,
+        {"processed": len(pending_items), "remaining_pending": remaining_pending},
+    )
     return _batch_out(batch, db)
 
 
@@ -151,6 +191,7 @@ def resolve_migration_item(
     item_id: str,
     legacy_metadata: str = Form("{}"),
     file: UploadFile | None = File(None),
+    actor: dict = Depends(require_review),
     db: Session = Depends(get_db),
 ):
     """Sec 2.6 #2: "resolved in-tool (resolution UI mutates the source-side mapping and re-runs
@@ -178,11 +219,17 @@ def resolve_migration_item(
     was_error_or_blocked = item.status in ("error", "blocked")
     _convert_and_classify_item(db, item, batch, merged_metadata, mark_resolved_if_clean=was_error_or_blocked)
     db.flush()
+    record_audit(
+        db, actor, "migration.item_resolve", "migration_item", item.id,
+        {"replaced_file": file is not None, "new_status": item.status},
+    )
     return _item_out(item, db)
 
 
 @router.post("/migration/batches/{batch_id}/items/{item_id}/block", response_model=MigrationItemOut)
-def block_migration_item(batch_id: str, item_id: str, note: str = Form(...), db: Session = Depends(get_db)):
+def block_migration_item(
+    batch_id: str, item_id: str, note: str = Form(...), actor: dict = Depends(require_review), db: Session = Depends(get_db)
+):
     """Sec 5: "mark blocked with a correction note" -- for errors like `source_grading_corrupt`
     that "do require a corrected source export" (Sec 2.3) rather than an in-tool fix."""
     item = db.get(MigrationItem, uuid.UUID(item_id))
@@ -192,11 +239,14 @@ def block_migration_item(batch_id: str, item_id: str, note: str = Form(...), db:
     item.block_note = note
     item.needs_review = True
     db.flush()
+    record_audit(db, actor, "migration.item_block", "migration_item", item.id, {"note": note})
     return _item_out(item, db)
 
 
 @router.post("/migration/batches/{batch_id}/items/{item_id}/accept-warning", response_model=MigrationItemOut)
-def accept_migration_item_warning(batch_id: str, item_id: str, actor: dict = Depends(get_actor), db: Session = Depends(get_db)):
+def accept_migration_item_warning(
+    batch_id: str, item_id: str, actor: dict = Depends(require_review), db: Session = Depends(get_db)
+):
     """Sec 2.6 #3: "warning items ... require an explicit accept-as-is before the batch commits.\""""
     item = db.get(MigrationItem, uuid.UUID(item_id))
     if item is None or str(item.batch_id) != batch_id:
@@ -209,6 +259,7 @@ def accept_migration_item_warning(batch_id: str, item_id: str, actor: dict = Dep
         finding.resolved_at = now
         finding.resolved_by = uuid.UUID(actor["id"])
     db.flush()
+    record_audit(db, actor, "migration.item_accept_warning", "migration_item", item.id)
     return _item_out(item, db)
 
 
@@ -216,6 +267,7 @@ def accept_migration_item_warning(batch_id: str, item_id: str, actor: dict = Dep
 def commit_migration_batch(
     batch_id: str,
     client: PlatformClient = Depends(get_platform_client),
+    actor: dict = Depends(require_migrate),
     db: Session = Depends(get_db),
 ):
     """Sec 2.6 #4: commits every `converted`/`resolved`/accepted-`converted_with_warning` item to
@@ -228,25 +280,32 @@ def commit_migration_batch(
     if not target_collection:
         raise bad_request("This batch's original request had no target_collection to commit to.")
 
-    items = db.query(MigrationItem).filter_by(batch_id=batch.id).all()
-    blockers = _commit_blockers(items)
+    blocker_rows = _commit_blocker_rows(db, batch.id)
+    blockers = _commit_blockers(blocker_rows)
     if blockers:
         raise bad_request(f"Cannot commit: {len(blockers)} item(s) not yet resolved/blocked/accepted: {blockers}.")
 
+    committed_count = 0
+    items = db.query(MigrationItem).filter_by(batch_id=batch.id).all()
     for item in items:
         if item.status not in PIECE_COMMIT_STATUSES:
             continue
         piece_code = item.source_style_ref.rsplit(".", 1)[0]
         piece = commit_geometry_to_platform(client, target_collection, piece_code, item.converted_geometry)
         item.target_piece_id = uuid.UUID(piece["id"])
+        committed_count += 1
 
     batch.status = "committed"
     db.flush()
+    record_audit(
+        db, actor, "migration.batch_commit", "migration_batch", batch.id,
+        {"committed_count": committed_count, "item_count": len(items)},
+    )
     return _batch_out(batch, db)
 
 
 @router.get("/migration/batches/{batch_id}", response_model=MigrationBatchOut)
-def get_migration_batch(batch_id: str, db: Session = Depends(get_db)):
+def get_migration_batch(batch_id: str, actor: dict = Depends(require_review), db: Session = Depends(get_db)):
     batch = db.get(MigrationBatch, uuid.UUID(batch_id))
     if batch is None:
         raise not_found("Migration batch")
@@ -254,18 +313,30 @@ def get_migration_batch(batch_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/migration/batches/{batch_id}/items", response_model=list[MigrationItemOut])
-def list_migration_items(batch_id: str, status: str | None = Query(None), db: Session = Depends(get_db)):
+def list_migration_items(
+    batch_id: str,
+    status: str | None = Query(None),
+    limit: int = Query(100, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    actor: dict = Depends(require_review),
+    db: Session = Depends(get_db),
+):
+    """Paginated (Sec 7 Step 5: a batch can hold thousands of items) -- defaults to the first 100,
+    ordered by upload order, filterable by `status`."""
     batch = db.get(MigrationBatch, uuid.UUID(batch_id))
     if batch is None:
         raise not_found("Migration batch")
     query = db.query(MigrationItem).filter_by(batch_id=batch.id)
     if status:
         query = query.filter_by(status=status)
-    return [_item_out(item, db) for item in query.order_by(MigrationItem.created_at).all()]
+    rows = query.order_by(MigrationItem.created_at).offset(offset).limit(limit).all()
+    return [_item_out(item, db) for item in rows]
 
 
 @router.get("/migration/batches/{batch_id}/items/{item_id}", response_model=MigrationItemOut)
-def get_migration_item(batch_id: str, item_id: str, db: Session = Depends(get_db)):
+def get_migration_item(
+    batch_id: str, item_id: str, actor: dict = Depends(require_review), db: Session = Depends(get_db)
+):
     item = db.get(MigrationItem, uuid.UUID(item_id))
     if item is None or str(item.batch_id) != batch_id:
         raise not_found("Migration item")
@@ -273,12 +344,12 @@ def get_migration_item(batch_id: str, item_id: str, db: Session = Depends(get_db
 
 
 @router.get("/migration/batches/{batch_id}/report.json")
-def get_migration_report_json(batch_id: str, db: Session = Depends(get_db)):
+def get_migration_report_json(batch_id: str, actor: dict = Depends(require_review), db: Session = Depends(get_db)):
     return _report_rows(batch_id, db)
 
 
 @router.get("/migration/batches/{batch_id}/report.csv")
-def get_migration_report_csv(batch_id: str, db: Session = Depends(get_db)):
+def get_migration_report_csv(batch_id: str, actor: dict = Depends(require_review), db: Session = Depends(get_db)):
     rows = _report_rows(batch_id, db)
     buffer = io.StringIO()
     writer = csv.DictWriter(buffer, fieldnames=["item_id", "source_style_ref", "code", "severity", "message", "deep_link"])
@@ -288,27 +359,32 @@ def get_migration_report_csv(batch_id: str, db: Session = Depends(get_db)):
 
 
 def _report_rows(batch_id: str, db: Session) -> list[dict]:
+    """One joined query rather than one findings query per item (Sec 7 Step 5: at
+    thousands-of-items scale, that N+1 pattern would mean thousands of round trips to build a
+    single report)."""
     batch = db.get(MigrationBatch, uuid.UUID(batch_id))
     if batch is None:
         raise not_found("Migration batch")
-    rows = []
-    items = db.query(MigrationItem).filter_by(batch_id=batch.id).all()
-    for item in items:
-        findings = db.query(MigrationFinding).filter_by(item_id=item.id).all()
-        for finding in findings:
-            rows.append(
-                {
-                    "item_id": str(item.id),
-                    "source_style_ref": item.source_style_ref,
-                    "code": finding.code,
-                    "severity": finding.severity,
-                    "message": finding.message,
-                    # A real Pattern Design deep link needs Step 4's commit (target_piece_id);
-                    # until then this points at this item's own detail endpoint.
-                    "deep_link": f"/migration/batches/{batch_id}/items/{item.id}",
-                }
-            )
-    return rows
+    joined = (
+        db.query(MigrationItem.id, MigrationItem.source_style_ref, MigrationFinding.code, MigrationFinding.severity, MigrationFinding.message)
+        .join(MigrationFinding, MigrationFinding.item_id == MigrationItem.id)
+        .filter(MigrationItem.batch_id == batch.id)
+        .order_by(MigrationItem.created_at)
+        .all()
+    )
+    return [
+        {
+            "item_id": str(item_id),
+            "source_style_ref": source_style_ref,
+            "code": code,
+            "severity": severity,
+            "message": message,
+            # A real Pattern Design deep link needs Step 4's commit (target_piece_id); until then
+            # this points at this item's own detail endpoint.
+            "deep_link": f"/migration/batches/{batch_id}/items/{item_id}",
+        }
+        for item_id, source_style_ref, code, severity, message in joined
+    ]
 
 
 def _convert_and_classify_item(
@@ -362,11 +438,23 @@ def _convert_and_classify_item(
         _write_finding(db, item.id, finding)
 
 
-def _commit_blockers(items: list[MigrationItem]) -> list[str]:
+def _commit_blocker_rows(db: Session, batch_id: uuid.UUID):
+    """A narrow column projection rather than full `MigrationItem` rows -- Sec 7 Step 5: this and
+    `_batch_out`'s status counts are read on every batch-status poll, so at thousands-of-items
+    scale they shouldn't pull each item's full converted_geometry/source_summary JSONB blobs just
+    to check status/warning_accepted/source_style_ref."""
+    return (
+        db.query(MigrationItem.source_style_ref, MigrationItem.status, MigrationItem.warning_accepted)
+        .filter_by(batch_id=batch_id)
+        .all()
+    )
+
+
+def _commit_blockers(rows) -> list[str]:
     blockers = []
-    for item in items:
-        if item.status not in GATE_ALLOWED_STATUSES or item.status == "converted_with_warning" and not item.warning_accepted:
-            blockers.append(item.source_style_ref)
+    for row in rows:
+        if row.status not in GATE_ALLOWED_STATUSES or row.status == "converted_with_warning" and not row.warning_accepted:
+            blockers.append(row.source_style_ref)
     return blockers
 
 
@@ -423,17 +511,23 @@ def _item_out(item: MigrationItem, db: Session) -> MigrationItemOut:
 
 
 def _batch_out(batch: MigrationBatch, db: Session) -> MigrationBatchOut:
-    items = db.query(MigrationItem).filter_by(batch_id=batch.id).all()
-    counts: dict[str, int] = {}
-    for item in items:
-        counts[item.status] = counts.get(item.status, 0) + 1
+    """Sec 7 Step 5: a status/counts poll against a thousands-of-items batch must not pull every
+    item's full row (converted_geometry/source_summary can each be several KB) just to count
+    statuses -- both queries below project only the columns they actually need."""
+    count_rows = (
+        db.query(MigrationItem.status, func.count(MigrationItem.id)).filter_by(batch_id=batch.id).group_by(MigrationItem.status).all()
+    )
+    counts = {status: count for status, count in count_rows}
+    item_count = sum(counts.values())
+    blocker_rows = _commit_blocker_rows(db, batch.id)
     return MigrationBatchOut(
         id=str(batch.id),
         source_system=batch.source_system,
         status=batch.status,
         auto_sort_flagged=batch.auto_sort_flagged,
         chunk_count=batch.chunk_count,
-        item_count=len(items),
+        item_count=item_count,
         counts=counts,
-        commit_blocked_by=_commit_blockers(items),
+        commit_blocked_by=_commit_blockers(blocker_rows),
+        remaining_pending=counts.get("pending", 0),
     )

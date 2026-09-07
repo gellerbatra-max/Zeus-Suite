@@ -231,6 +231,11 @@ export function MigrationPanel() {
               <span className="hint">Counts:</span>{' '}
               {Object.entries(batch.counts).map(([k, v]) => `${k}: ${v}`).join(', ') || 'none yet'}
             </p>
+            {batch.status === 'running' && (
+              <p className="hint">
+                {batch.remaining_pending} item(s) still pending in this chunk pass -- click "Run Batch" again to continue.
+              </p>
+            )}
             <button onClick={commitBatch} disabled={committing || batch.commit_blocked_by.length > 0 || batch.item_count === 0}>
               {committing ? 'Committing…' : 'Commit Batch'}
             </button>

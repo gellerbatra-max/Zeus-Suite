@@ -1,13 +1,16 @@
 # format-interchange-service
 
-Backend + frontend for the Format Interchange & Legacy Migration Utility, Steps 1-4 of Phase 3 (see
+Backend + frontend for the Format Interchange & Legacy Migration Utility, all five steps of Phase
+3's phased build plan (see
 [`docs/planning/04_format_interchange/format_interchange_plan.md`](../../docs/planning/04_format_interchange/format_interchange_plan.md)
 Sec 7): single-piece IGES export ("the smallest complete slice"), single-piece IGES import (the
 reader, the Sec 1.2 option pipeline, Import Profiles, and a staged-commit Import Viewer), the
 Legacy Migration batch pipeline's classification stage (batch upload, per-item conversion, the
-full Sec 2.3/2.4 error/warning catalogue, and a CSV/JSON findings report), and the Migration
-Viewer + triage-and-fix loop (canvas overlay, Measure, Snap-to-Geometry, and the
-resolve/block/accept-warning/commit workflow, Sec 2.5/2.6).
+full Sec 2.3/2.4 error/warning catalogue, and a CSV/JSON findings report), the Migration Viewer +
+triage-and-fix loop (canvas overlay, Measure, Snap-to-Geometry, and the
+resolve/block/accept-warning/commit workflow, Sec 2.5/2.6), and Step 5's hardening pass (chunked
+batch processing verified at real multi-thousand-item scale, this service's own audit log, and
+RBAC permission enforcement on every endpoint).
 
 ## How this differs from every other app built so far
 
@@ -105,10 +108,47 @@ uses against its own backend, just one hop further out.
   `MigrationPanel.tsx` (batch create/run/triage/commit UI). Mirrors `pattern-design-app`'s own
   `PatternCanvas.tsx` conventions (1px = 1mm, no Y-flip, wheel-zoom clamped to [0.2, 6]) as a
   standalone component -- there's no shared npm package between the two apps to import from.
+- `app/permissions.py` -- Step 5's own local RBAC gate (Sec 5: "enforce RBAC roles... at the API
+  layer"). Every sibling thin-client service in the suite relies entirely on data-platform-api's
+  own `require_permission` (every mutation it makes eventually calls a platform endpoint that
+  already enforces one); this service is the first with real local state and endpoints (migration
+  triage, batch/item reads, the report) that never call the platform at all, so there's no
+  transitive check to lean on for those -- see the module's own docstring for the full
+  permission-to-endpoint mapping and why this is a deliberate divergence from that shared pattern,
+  not an inconsistency with it.
+- `app/audit.py` + `app/api/audit_log.py` -- this service's own append-only audit trail (`GET
+  /audit-log`), one row per completed mutating action. data-platform-api's own `dmp.audit_log` has
+  no write endpoint an external caller can use (its `record_audit` only ever fires as a side
+  effect of its own mutation routes), and this service's local-only actions have no platform row
+  to rely on either -- see `AuditLogEntry`'s docstring in `app/models.py`.
 - `alembic/` -- `format_interchange` schema: `interchange_job` (Step 1) plus (Step 2)
   `import_profile` and `interchange_job.target_piece_id`/nullable `piece_id`, plus (Step 3)
   `migration_batch`/`migration_item`/`migration_finding`, plus (Step 4)
-  `migration_item.legacy_metadata`/`warning_accepted`/`block_note`.
+  `migration_item.legacy_metadata`/`warning_accepted`/`block_note`, plus (Step 5) `audit_log`.
+  `data-platform-api`'s own `0009_add_interchange_permissions.py` (a migration on that service, not
+  this one) adds the four `interchange.*` permission codes this service checks against, granted to
+  `admin` (all four) and `viewer`/`auditor` (`interchange.review`).
+
+## Step 5 hardening notes
+
+- **Chunked batch processing at scale**: `POST /migration/batches/{id}/run` processes at most
+  `settings.migration_chunk_size` (default 2000, matching Gerber's own chunking guidance)
+  still-`pending` items per call, leaving `batch.status="running"` with `remaining_pending > 0`
+  until a caller drives it to completion with repeated `/run` calls -- verified with a real
+  2,200-item batch in `tests/test_migration_scale.py` (the literal "thousands of styles" scale the
+  plan names), which also caught and fixed two real scale bugs along the way: `_batch_out`'s
+  status counts and the findings report were both loading every item's full row (including its
+  `converted_geometry`/`source_summary` JSON) just to count statuses or list findings -- both now
+  use narrow-column/aggregate/joined queries instead. Batch **creation** itself hit a third,
+  independent limit: Starlette's multipart parser caps a request at 1000 file parts by default,
+  which FastAPI's ordinary `files: list[UploadFile] = File(...)` injection has no way to raise --
+  `create_migration_batch` now parses the form manually via `request.form(max_files=...)` instead.
+  True background/worker-queue processing (vs. one chunk per synchronous HTTP request) is still
+  deferred, same reason as every other step: no dedicated worker service-account.
+- **RBAC**: see `app/permissions.py` above; `tests/test_permissions.py` proves both directions (a
+  `viewer` refused on every mutating endpoint, an `admin` refused nowhere).
+- **Audit log**: see `app/audit.py` above; `tests/test_audit_log.py` proves one entry per action
+  across export/import/migration, org-scoped so one org can't read another's trail.
 
 ## Local setup
 
@@ -143,23 +183,27 @@ same rather than assuming port 8000 / the `zeus_suite` database are yours alone.
 
 ## Deferred (flagged, not built here)
 
-Everything past Step 4 of Sec 7's phased plan: load-testing batch migration at realistic
-legacy-library scale, audit-log completeness, and RBAC role enforcement across every endpoint
-(Step 5). Within Step 1: batch export (`POST /export/iges/batch`), `entity_profile` target-system
-curve preferences (no curve/spline entity exists yet to have preferences about), and a dedicated
-worker service-account identity for pushing the platform `Job` through its real
-`heartbeat`/`complete` lifecycle (see `app/api/export.py`'s docstring). Within Step 2:
+This service has now built all five of Sec 7's phased steps; what's left is scoped-out-of-this-app
+work or genuinely out of scope for a local-dev suite. Within Step 1: batch export (`POST
+/export/iges/batch`), `entity_profile` target-system curve preferences (no curve/spline entity
+exists yet to have preferences about), and a dedicated worker service-account identity for pushing
+the platform `Job` through its real `heartbeat`/`complete` lifecycle (see `app/api/export.py`'s
+docstring -- Step 5 hardened chunking within one request, but true background/worker-queue
+processing still needs that same missing service-account). Within Step 2:
 `infer_grade_points`/`numbering_scheme` grade-point inference (no grading integration exists in
 this service), `max_arc_points`/`max_spline_points`/`force_sharp_corners` (no arc/spline entity or
 curve-smoothing exists to act on -- these produce an `option_not_implemented` warning if
-requested). Within Step 3: real chunked/async batch processing at scale (`chunk_count` is computed
-and stored, but `/run` still processes every pending item synchronously in one request, same
-deviation as Steps 1-2 -- Step 5's own load-test is where this gets hardened), and any legacy
-source format other than IGES (Sec 6's per-format parser-module extension point is in place via
-`app/migration_sources.py`, but only `iges` is registered -- every Sec 2.3/2.4 catalogue code that
-would come from a real DXF/AAMA-ASTM parser's own extracted metadata instead comes from a
-caller-supplied `LegacyMetadata` bag, see `app/migration_checks.py`'s docstring). Within Step 4:
-"Curves Different" (no curve entity exists to compute a deviation against), and the Sec 2.3 error
-catalogue's own per-code deep-link targets into Pattern Design's editor (this slice's fix path is
-generic -- corrected `legacy_metadata` and/or a replacement file via `/resolve` -- not a bespoke
-resolution UI per error code).
+requested). Within Step 3: any legacy source format other than IGES (Sec 6's per-format
+parser-module extension point is in place via `app/migration_sources.py`, but only `iges` is
+registered -- every Sec 2.3/2.4 catalogue code that would come from a real DXF/AAMA-ASTM parser's
+own extracted metadata instead comes from a caller-supplied `LegacyMetadata` bag, see
+`app/migration_checks.py`'s docstring). Within Step 4: "Curves Different" (no curve entity exists
+to compute a deviation against), and the Sec 2.3 error catalogue's own per-code deep-link targets
+into Pattern Design's editor (this slice's fix path is generic -- corrected `legacy_metadata`
+and/or a replacement file via `/resolve` -- not a bespoke resolution UI per error code). Within
+Step 5: a genuine Entra ID (Azure AD) token-derived permission list (this suite's whole RBAC layer
+is still the dev-stub `X-Dev-User`/`X-Dev-Org` header convention every service uses, per
+data-platform-api's own `app/auth.py`) and per-folder-scoped `interchange.*` grants (the platform's
+`user_roles.folder_id` scoping exists for every other permission but isn't meaningfully applicable
+to this service's own batch/item actions, which aren't folder-scoped resources the way a piece or
+marker is).

@@ -22,8 +22,9 @@ import uuid
 from fastapi import APIRouter, Depends, File, Form, UploadFile
 from sqlalchemy.orm import Session
 
+from app.audit import record_audit
 from app.blob_io import download_import_bundle, upload_import_bundle
-from app.deps import get_actor, get_db, get_platform_client
+from app.deps import get_db, get_platform_client
 from app.errors import bad_request, not_found
 from app.iges_reader import IgesParseError, parse_iges
 from app.import_pipeline import (
@@ -32,6 +33,7 @@ from app.import_pipeline import (
     run_import_pipeline,
 )
 from app.models import ImportProfile, InterchangeJob
+from app.permissions import require_import
 from app.platform_client import PlatformClient
 from app.platform_commit import commit_geometry_to_platform
 from app.schemas import ImportIgesJobOut
@@ -57,7 +59,7 @@ def import_iges(
     options: str = Form("{}"),
     piece_code: str | None = Form(None),
     client: PlatformClient = Depends(get_platform_client),
-    actor: dict = Depends(get_actor),
+    actor: dict = Depends(require_import),
     db: Session = Depends(get_db),
 ):
     try:
@@ -119,11 +121,15 @@ def import_iges(
         interchange_job.status = "failed"
         interchange_job.error_detail = str(exc)
 
+    record_audit(
+        db, actor, "import.iges", "interchange_job", interchange_job.id,
+        {"file_name": file.filename, "status": interchange_job.status},
+    )
     return _job_out(interchange_job)
 
 
 @router.get("/import/iges/jobs/{job_id}", response_model=ImportIgesJobOut)
-def get_import_job(job_id: str, db: Session = Depends(get_db)):
+def get_import_job(job_id: str, actor: dict = Depends(require_import), db: Session = Depends(get_db)):
     interchange_job = db.get(InterchangeJob, uuid.UUID(job_id))
     if interchange_job is None:
         raise not_found("Import job")
@@ -131,7 +137,7 @@ def get_import_job(job_id: str, db: Session = Depends(get_db)):
 
 
 @router.get("/import/iges/jobs/{job_id}/log")
-def get_import_job_log(job_id: str, db: Session = Depends(get_db)):
+def get_import_job_log(job_id: str, actor: dict = Depends(require_import), db: Session = Depends(get_db)):
     interchange_job = db.get(InterchangeJob, uuid.UUID(job_id))
     if interchange_job is None:
         raise not_found("Import job")
@@ -146,6 +152,7 @@ def get_import_job_log(job_id: str, db: Session = Depends(get_db)):
 def commit_import_job(
     job_id: str,
     client: PlatformClient = Depends(get_platform_client),
+    actor: dict = Depends(require_import),
     db: Session = Depends(get_db),
 ):
     interchange_job = db.get(InterchangeJob, uuid.UUID(job_id))
@@ -163,6 +170,7 @@ def commit_import_job(
     piece = commit_geometry_to_platform(client, target_collection, piece_code, bundle["geometry"])
     interchange_job.status = "committed"
     interchange_job.target_piece_id = uuid.UUID(piece["id"])
+    record_audit(db, actor, "import.commit", "interchange_job", interchange_job.id, {"target_piece_id": str(piece["id"])})
     return _job_out(interchange_job)
 
 

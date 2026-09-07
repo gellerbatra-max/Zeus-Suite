@@ -18,8 +18,9 @@ import uuid
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
+from app.audit import record_audit
 from app.blob_io import download_bytes, download_url_for_export, upload_export
-from app.deps import get_actor, get_db, get_platform_client
+from app.deps import get_db, get_platform_client
 from app.errors import not_found
 from app.geometry import (
     ExportValidationError,
@@ -28,6 +29,7 @@ from app.geometry import (
 )
 from app.iges_writer import write_iges
 from app.models import InterchangeJob
+from app.permissions import require_export
 from app.platform_client import PlatformClient
 from app.schemas import ExportIgesJobOut, ExportIgesRequest
 
@@ -39,7 +41,7 @@ def export_iges(
     piece_id: str,
     body: ExportIgesRequest,
     client: PlatformClient = Depends(get_platform_client),
-    actor: dict = Depends(get_actor),
+    actor: dict = Depends(require_export),
     db: Session = Depends(get_db),
 ):
     piece = client.get(f"/pieces/{piece_id}")
@@ -96,6 +98,10 @@ def export_iges(
         interchange_job.status = "failed"
         interchange_job.error_detail = str(exc)
 
+    record_audit(
+        db, actor, "export.iges", "interchange_job", interchange_job.id,
+        {"piece_id": piece_id, "status": interchange_job.status},
+    )
     return _job_out(interchange_job, piece)
 
 
@@ -103,6 +109,7 @@ def export_iges(
 def get_export_job(
     job_id: str,
     client: PlatformClient = Depends(get_platform_client),
+    actor: dict = Depends(require_export),
     db: Session = Depends(get_db),
 ):
     interchange_job = db.get(InterchangeJob, uuid.UUID(job_id))

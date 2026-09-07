@@ -79,9 +79,12 @@ class MigrationItemOut(BaseModel):
 class MigrationBatchOut(BaseModel):
     id: str
     source_system: str
-    status: str  # pending | completed | committed
+    status: str  # pending | running | completed | committed
     auto_sort_flagged: bool
     chunk_count: int
     item_count: int
     counts: dict[str, int] = {}
     commit_blocked_by: list[str] = []
+    # >0 while `status == "running"`: how many items `/run` hasn't reached yet in this chunked
+    # pass (Sec 7 Step 5) -- call `/run` again to process the next chunk.
+    remaining_pending: int = 0

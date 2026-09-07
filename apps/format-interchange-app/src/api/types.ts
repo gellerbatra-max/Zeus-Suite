@@ -120,10 +120,12 @@ export interface MigrationItemOut {
 export interface MigrationBatchOut {
   id: string
   source_system: string
-  status: string // pending | completed | committed
+  status: string // pending | running | completed | committed
   auto_sort_flagged: boolean
   chunk_count: number
   item_count: number
   counts: Record<string, number>
   commit_blocked_by: string[]
+  // >0 while status === 'running': call /run again to process the next chunk (Step 5 chunking).
+  remaining_pending: number
 }

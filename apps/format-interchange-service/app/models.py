@@ -131,3 +131,26 @@ class MigrationFinding(Base):
     resolved_at = Column(TIMESTAMP(timezone=True), nullable=True)
     resolved_by = Column(UUID(as_uuid=True), nullable=True)
     created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())
+
+
+class AuditLogEntry(Base):
+    """This service's own append-only audit trail (Sec 7 Step 5: "verify audit-log completeness
+    for every export/import/migration action"). data-platform-api's own `dmp.audit_log` (see its
+    app/auditing.py) only ever records a row as a side effect of ITS OWN mutation routes -- it has
+    no write endpoint an external caller can use, and several of this service's actions (Step 3/4's
+    migration triage: resolve/block/accept-warning; every read-only view) never call the platform
+    at all, so there's no platform-side row to rely on for them. One entry is written per
+    completed mutating action (never for plain reads, matching data-platform-api's own convention
+    of auditing mutations, not views); see app/audit.py."""
+
+    __tablename__ = "audit_log"
+
+    id = Column(UUID(as_uuid=True), primary_key=True)
+    organization_id = Column(UUID(as_uuid=True), nullable=False)
+    actor_id = Column(UUID(as_uuid=True), nullable=False)
+    action = Column(Text, nullable=False)
+    entity_type = Column(Text, nullable=False)
+    entity_id = Column(UUID(as_uuid=True), nullable=True)
+    result = Column(Text, nullable=False, server_default="success")  # success | denied | failed
+    detail = Column(JSONB, nullable=False, server_default="{}")
+    created_at = Column(TIMESTAMP(timezone=True), nullable=False, server_default=func.now())

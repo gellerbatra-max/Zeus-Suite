@@ -7,9 +7,11 @@ import uuid
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from app.deps import get_actor, get_db
+from app.audit import record_audit
+from app.deps import get_db
 from app.errors import not_found
 from app.models import ImportProfile
+from app.permissions import require_import
 from app.schemas import ImportProfileIn, ImportProfileOut
 
 router = APIRouter(tags=["import-profiles"])
@@ -22,7 +24,7 @@ def _out(profile: ImportProfile) -> ImportProfileOut:
 
 
 @router.get("/import-profiles", response_model=list[ImportProfileOut])
-def list_import_profiles(actor: dict = Depends(get_actor), db: Session = Depends(get_db)):
+def list_import_profiles(actor: dict = Depends(require_import), db: Session = Depends(get_db)):
     rows = (
         db.query(ImportProfile)
         .filter(ImportProfile.organization_id == uuid.UUID(actor["organization_id"]))
@@ -33,7 +35,7 @@ def list_import_profiles(actor: dict = Depends(get_actor), db: Session = Depends
 
 
 @router.post("/import-profiles", response_model=ImportProfileOut)
-def create_import_profile(body: ImportProfileIn, actor: dict = Depends(get_actor), db: Session = Depends(get_db)):
+def create_import_profile(body: ImportProfileIn, actor: dict = Depends(require_import), db: Session = Depends(get_db)):
     profile = ImportProfile(
         id=uuid.uuid4(),
         organization_id=uuid.UUID(actor["organization_id"]),
@@ -44,12 +46,13 @@ def create_import_profile(body: ImportProfileIn, actor: dict = Depends(get_actor
     )
     db.add(profile)
     db.flush()
+    record_audit(db, actor, "import_profile.create", "import_profile", profile.id, {"name": profile.name})
     return _out(profile)
 
 
 @router.put("/import-profiles/{profile_id}", response_model=ImportProfileOut)
 def update_import_profile(
-    profile_id: str, body: ImportProfileIn, actor: dict = Depends(get_actor), db: Session = Depends(get_db)
+    profile_id: str, body: ImportProfileIn, actor: dict = Depends(require_import), db: Session = Depends(get_db)
 ):
     profile = db.get(ImportProfile, uuid.UUID(profile_id))
     if profile is None or str(profile.organization_id) != actor["organization_id"]:
@@ -58,4 +61,5 @@ def update_import_profile(
     profile.trading_partner = body.trading_partner
     profile.params = body.params
     db.flush()
+    record_audit(db, actor, "import_profile.update", "import_profile", profile.id, {"name": profile.name})
     return _out(profile)
