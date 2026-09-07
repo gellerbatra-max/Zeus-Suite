@@ -92,6 +92,22 @@ service's README for the full architecture).
   service's dedicated endpoints and print the result inline. **Deferred**: "Estimate Material"
   (cap-nesting, per-mode breakdown) and the standalone material-calculation-file what-if tool —
   see [`marker-making-service`](../marker-making-service)'s README for why.
+- **Marker-wide Flip / Transform panel** (§1.9) — a "Flip whole marker: Flip X / Flip Y / Flip XY"
+  row in the main toolbar mirrors every placed piece's position within the tight bounding box of
+  everything currently placed (`src/geometry.ts`'s `computeBoundingBox`, the same bbox-as-reference-
+  frame convention fuse-blocking and material-calc already use) and toggles each piece's own flip
+  flag — a pure local-state edit persisted on the next Save, exactly like single-piece Flip H/V
+  already work (no server round trip). `TransformPanel.tsx` covers the two server-backed
+  capabilities: "Change Width of Marker" `PATCH`es the marker's `fabric_width`, which now actually
+  drives the canvas's fabric-width axis (the canvas height — this app's established convention
+  treats X as the unbounded cut-length axis and Y as the bounded fabric-width axis, the same one
+  bite-boundary validation and material-calc's length math already assume) instead of a hardcoded
+  constant; a note under the input makes explicit that this does **not** auto-rearrange pieces —
+  there's no real nesting algorithm to call one. "Shrink / Stretch (order)" saves
+  `shrink_x_pct`/`shrink_y_pct` onto the marker's linked order (disabled with a note when there
+  isn't one), and "Apply to Placements" calls the service's stand-in endpoint that scales the
+  current canvas geometry right now and refreshes it in place — a warning line makes explicit that
+  clicking Apply twice double-scales, since nothing tracks whether it's already been applied.
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -214,3 +230,21 @@ count/weight-per-area/marker length) and got `Weight: 4400` (hand calc:
 (order)", saved, confirmed via `GET /orders/{id}` that both persisted on the linked order, and
 confirmed via the Konva scene graph that the canvas rendered a dashed purple vertical line at
 exactly `x=150` labeled "TARGET".
+
+**Marker transformations**: seeded a marker with `fabric_width=200` and the same two placements as
+the material-calc check above — opened it and confirmed the Konva stage's actual pixel height was
+`200` (not the old hardcoded `450`), proving `fabric_width` now drives the canvas. Clicked "Flip
+X": bbox of both pieces is `min_x=10, min_y=5, max_x=110, max_y=65`; hand calc for piece A
+(`x=10,w=50`) is `new_x = 10+110-10-50 = 60`, for piece B (`x=80,w=30`) is
+`new_x = 10+110-80-30 = 10` — confirmed both exactly via the Konva scene graph, along with
+`scaleX=-1` on each Group (the flip flag toggled). Saved and confirmed the new `x`/`flip_x` values
+persisted through `GET /markers/{id}/pieces` against the real platform API. Entered Shrink X
+`-50%` / Shrink Y `+100%` under "Shrink / Stretch (order)", saved, and confirmed via
+`GET /orders/{id}` that both persisted (`shrink_x_pct=-50, shrink_y_pct=100`). Clicked "Apply to
+Placements" and confirmed via the platform API that piece A (`x=60,y=20,w=50,h=40` post-flip)
+became exactly `x=35, y=35, w=25, h=80` and piece B (`x=10,y=5,w=30,h=60`) became exactly
+`x=10, y=5, w=15, h=120` — both matching the hand calculation (`scale_x=0.5`, `scale_y=2.0`,
+anchored at the combined bbox's top-left corner `(10,5)`) — and that the canvas re-rendered the
+new geometry immediately, without a manual reload. Entered fabric width `300` under "Change Width
+of Marker", clicked "Change Width", and confirmed both the Konva stage height (`300`) and
+`GET /markers/{id}`'s `fabric_width` updated immediately.

@@ -9,6 +9,25 @@ export function boundingBoxesOverlap(a: BoxLike, b: BoxLike): boolean {
   return a.x < b.x + b.width && a.x + a.width > b.x && a.y < b.y + b.height && a.y + a.height > b.y
 }
 
+// Whole-marker Flip X/Y/XY (Sec 1.9): the tight bounding box of everything currently placed, so a
+// marker-wide flip mirrors pieces within their own occupied footprint rather than an arbitrary
+// fixed canvas rectangle -- consistent with how fuse-blocking/material-calc already treat bbox as
+// the natural reference frame instead of the (unbounded, purely visual) canvas dimensions.
+export function computeBoundingBox(boxes: BoxLike[]): { minX: number; minY: number; maxX: number; maxY: number } | null {
+  if (boxes.length === 0) return null
+  let minX = Infinity
+  let minY = Infinity
+  let maxX = -Infinity
+  let maxY = -Infinity
+  for (const b of boxes) {
+    minX = Math.min(minX, b.x)
+    minY = Math.min(minY, b.y)
+    maxX = Math.max(maxX, b.x + b.width)
+    maxY = Math.max(maxY, b.y + b.height)
+  }
+  return { minX, minY, maxX, maxY }
+}
+
 // Overlapped checking (marker_making_production_plan.md Sec 1.4): how far two pieces' bounding
 // boxes intrude into each other on each axis, for reading the max overlap value against a
 // neighbour once pieces are flagged as overlapping. Same axis-aligned-bounding-box simplification

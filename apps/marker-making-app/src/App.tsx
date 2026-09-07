@@ -3,18 +3,21 @@ import { IdentityBar } from './components/IdentityBar'
 import { PieceTray } from './components/PieceTray'
 import { MarkerCanvas } from './components/MarkerCanvas'
 import type { CanvasPlacement } from './components/MarkerCanvas'
-import { overlapAmount } from './geometry'
+import { computeBoundingBox, overlapAmount } from './geometry'
 import { NestingJobPanel } from './components/NestingJobPanel'
 import { MatchingPanel } from './components/MatchingPanel'
 import { FuseBlockPanel } from './components/FuseBlockPanel'
 import { MaterialPanel } from './components/MaterialPanel'
+import { TransformPanel } from './components/TransformPanel'
 import { api, ApiError } from './api/client'
 import type { BlockBufferRuleTableOut, FuseBlockOut, MatchGuidanceOut, WeaveLine, WorkspaceOut } from './api/types'
 
-// The platform's marker.fabric_width isn't wired into the workspace payload for this slice --
-// the boundary here is a fixed visual reference, not tied to a real fabric width yet.
+// The length axis (X) has no stored dimension -- a marker's length is however long its placed
+// pieces need, so this boundary stays a fixed visual reference. The fabric-width axis (Y) *is*
+// wired to the marker's real fabric_width (Sec 1.9's "Change Width of Marker"), falling back to
+// this default only when the marker has none set yet.
 const MARKER_WIDTH = 700
-const MARKER_HEIGHT = 450
+const DEFAULT_MARKER_HEIGHT = 450
 
 function toCanvasPlacement(workspace: WorkspaceOut, pieceId: string): CanvasPlacement | null {
   const piece = workspace.available_pieces.find((p) => p.id === pieceId)
@@ -61,6 +64,7 @@ export default function App() {
   const [fuseBlocks, setFuseBlocks] = useState<FuseBlockOut[]>([])
   const [blockBufferRuleTables, setBlockBufferRuleTables] = useState<BlockBufferRuleTableOut[]>([])
   const [targetLength, setTargetLength] = useState<number | null>(null)
+  const [fabricWidth, setFabricWidth] = useState<number | null>(null)
   const lastGuidanceAt = useRef(0)
 
   const openMarker = async () => {
@@ -82,6 +86,7 @@ export default function App() {
       setFuseBlocks([])
       setBlockBufferRuleTables([])
       setTargetLength(null)
+      setFabricWidth(ws.fabric_width)
     } catch (err) {
       setWorkspace(null)
       setError(err instanceof ApiError ? err.message : String(err))
@@ -189,6 +194,38 @@ export default function App() {
     setSelectedPieceId(null)
   }
 
+  // Whole-marker Flip X/Y/XY (Sec 1.9): mirrors every placed piece's position within the tight
+  // bounding box of everything currently placed (see geometry.ts's computeBoundingBox) and
+  // toggles each piece's own flip flag -- a pure local-state edit persisted on the next Save,
+  // exactly like single-piece rotate/flip above.
+  const flipMarker = (axis: 'x' | 'y' | 'xy') => {
+    const bbox = computeBoundingBox(placements)
+    if (!bbox) return
+    setPlacements((prev) =>
+      prev.map((p) => {
+        let { x, y, flipX, flipY } = p
+        if (axis === 'x' || axis === 'xy') {
+          x = bbox.minX + bbox.maxX - p.x - p.width
+          flipX = !p.flipX
+        }
+        if (axis === 'y' || axis === 'xy') {
+          y = bbox.minY + bbox.maxY - p.y - p.height
+          flipY = !p.flipY
+        }
+        return { ...p, x, y, flipX, flipY }
+      }),
+    )
+  }
+
+  // Shrink and Stretch's "Apply to Placements" (Sec 1.9) already persisted the scaled geometry on
+  // the platform (marker-making-service's apply-shrink-stretch endpoint) -- this just re-derives
+  // each existing placement's geometry from the returned workspace, without touching selection,
+  // matching, fuse-block, or any other panel's state.
+  const applyWorkspaceGeometry = (ws: WorkspaceOut) => {
+    setWorkspace(ws)
+    setPlacements((prev) => prev.map((p) => toCanvasPlacement(ws, p.pieceId) ?? p))
+  }
+
   const save = async () => {
     if (!workspace) return
     setSaving(true)
@@ -255,7 +292,7 @@ export default function App() {
           <div className="app__canvas-column">
             <MarkerCanvas
               markerWidth={MARKER_WIDTH}
-              markerHeight={MARKER_HEIGHT}
+              markerHeight={fabricWidth ?? DEFAULT_MARKER_HEIGHT}
               placements={placements}
               onPlace={handlePlace}
               onMove={handleMove}
@@ -306,6 +343,18 @@ export default function App() {
                 Stripe Set: {selectedStripeIndependentInSet ? 'Independent' : 'Linked'}
               </button>
             </div>
+            <div className="marker-toolbar">
+              <span className="hint">Flip whole marker:</span>
+              <button disabled={placements.length === 0} onClick={() => flipMarker('x')}>
+                Flip X
+              </button>
+              <button disabled={placements.length === 0} onClick={() => flipMarker('y')}>
+                Flip Y
+              </button>
+              <button disabled={placements.length === 0} onClick={() => flipMarker('xy')}>
+                Flip XY
+              </button>
+            </div>
           </div>
 
           <MatchingPanel
@@ -342,6 +391,13 @@ export default function App() {
             markerId={workspace.marker_id}
             hasOrder={workspace.order_id != null}
             onTargetLengthChanged={setTargetLength}
+          />
+
+          <TransformPanel
+            markerId={workspace.marker_id}
+            hasOrder={workspace.order_id != null}
+            onFabricWidthChanged={setFabricWidth}
+            onWorkspaceApplied={applyWorkspaceGeometry}
           />
 
           <NestingJobPanel markerId={workspace.marker_id} orderId={workspace.order_id} />

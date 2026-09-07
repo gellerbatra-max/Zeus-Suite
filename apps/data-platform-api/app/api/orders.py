@@ -132,7 +132,10 @@ def patch_order(
     check_if_match_version(if_match_version, order.version)
 
     before = {"customer": order.customer, "due_date": str(order.due_date)}
-    for field in ("customer", "due_date", "target_length", "target_utilization_pct"):
+    for field in (
+        "customer", "due_date", "target_length", "target_utilization_pct",
+        "shrink_x_pct", "shrink_y_pct",
+    ):
         value = getattr(body, field)
         if value is not None:
             setattr(order, field, value)

@@ -51,6 +51,7 @@ class WorkspaceOut(BaseModel):
     workflow_status: str
     order_id: str | None
     style_id: str | None
+    fabric_width: float | None = None
     matching_method: str | None = None
     matching_rule_table_id: str | None = None
     available_pieces: list[WorkspacePiece]
@@ -351,3 +352,25 @@ class MaterialWeightRequest(BaseModel):
 
 class MaterialWeightOut(BaseModel):
     weight: float
+
+
+# -- Marker transformations (Sec 1.9) -------------------------------------------------------------
+
+
+class ShrinkStretchPatchRequest(BaseModel):
+    shrink_x_pct: float | None = None
+    shrink_y_pct: float | None = None
+
+
+class TransformSettingsOut(BaseModel):
+    fabric_width: float | None
+    shrink_x_pct: float | None
+    shrink_y_pct: float | None
+
+
+class ChangeWidthRequest(BaseModel):
+    fabric_width: float
+
+
+class ChangeWidthOut(BaseModel):
+    fabric_width: float

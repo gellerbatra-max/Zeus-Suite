@@ -256,3 +256,28 @@ def test_order_target_utilization_pct_out_of_range_rejected(db_session):
     with pytest.raises(IntegrityError):
         session.flush()
     session.rollback()
+
+
+def test_order_shrink_pct_at_or_below_negative_100_rejected(db_session):
+    session = db_session
+    unique = uuid.uuid4().hex[:8]
+    org, user, folder = _seed_org_user_folder(session, unique)
+
+    style = Style(
+        organization_id=org.id, folder_id=folder.id, style_number=f"STY-{unique}", style_name="Style",
+        workflow_status_id=session.query(WorkflowStatus).filter_by(entity_type="style", code="draft").one().id,
+        created_by=user.id, updated_by=user.id,
+    )
+    session.add(style)
+    session.flush()
+
+    bad_order = Order(
+        organization_id=org.id, folder_id=folder.id, order_number=f"ORD-{unique}", style_id=style.id,
+        shrink_x_pct=-100.0,
+        workflow_status_id=session.query(WorkflowStatus).filter_by(entity_type="order", code="open").one().id,
+        created_by=user.id, updated_by=user.id,
+    )
+    session.add(bad_order)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()

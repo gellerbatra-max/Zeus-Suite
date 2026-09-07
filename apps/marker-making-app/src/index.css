@@ -79,7 +79,7 @@ input {
 .app__main {
   flex: 1;
   display: grid;
-  grid-template-columns: 220px 1fr 300px 280px 240px 260px;
+  grid-template-columns: 220px 1fr 300px 280px 240px 240px 260px;
   gap: 20px;
   padding: 20px;
   align-items: start;
@@ -162,6 +162,12 @@ input {
 
 .piece-toolbar {
   display: flex;
+  gap: 8px;
+}
+
+.marker-toolbar {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
 
@@ -531,4 +537,52 @@ input {
   font-weight: 600;
   color: var(--accent);
   margin: 0;
+}
+
+/* Transform panel (Sec 1.9) */
+
+.transform-panel {
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.transform-panel h3 {
+  margin-top: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.transform-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.transform-panel__section:last-child {
+  border-bottom: none;
+}
+
+.transform-panel__section label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.transform-panel__inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.transform-panel__inline-form input {
+  flex: 1;
+  min-width: 80px;
 }

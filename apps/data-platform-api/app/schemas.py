@@ -387,6 +387,8 @@ class OrderPatch(BaseModel):
     due_date: date | None = None
     target_length: float | None = None
     target_utilization_pct: float | None = Field(default=None, ge=0, le=100)
+    shrink_x_pct: float | None = Field(default=None, gt=-100)
+    shrink_y_pct: float | None = Field(default=None, gt=-100)
 
 
 class OrderOut(BaseModel):
@@ -399,6 +401,8 @@ class OrderOut(BaseModel):
     total_quantity: int
     target_length: float | None
     target_utilization_pct: float | None
+    shrink_x_pct: float | None
+    shrink_y_pct: float | None
     workflow_status: WorkflowStatusOut
     version: int
     created_at: datetime

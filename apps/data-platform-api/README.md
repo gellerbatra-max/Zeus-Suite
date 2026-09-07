@@ -164,6 +164,19 @@ own) — fixed in the same pass across every entity router, not scoped to search
   `markers` and `orders` plus the percentage-range rejection at the API layer;
   `tests/test_constraints.py` covers the same range rejection at the DB layer.
 
+- `alembic/versions/0011_add_shrink_stretch_fields.py` — Marker Making §1.9 (marker
+  transformations): `orders.shrink_x_pct`/`shrink_y_pct`, per the plan doc's own schema sketch
+  (same `orders` row that already carries `target_length`/`target_utilization`, added in
+  migration 0010) — "entered on the order... system scales every placed piece accordingly before
+  cutting." Only a lower-bound `CHECK (... > -100)` — a -100% shrink would scale a dimension to
+  exactly zero, which is nonsensical, but the plan gives no ceiling on stretch %. Whole-marker
+  Flip X/Y/XY and Change Width of Marker needed **no new platform schema at all** this slice: Flip
+  is a pure client-side transform of already-loaded placement data (see
+  [`marker-making-app`](../marker-making-app)'s README), and Change Width just reuses
+  `markers.fabric_width`, already a column, already patchable. `tests/test_marker_transforms.py`
+  covers the new `PATCH` fields and the percentage-range rejection at the API layer;
+  `tests/test_constraints.py` covers the same rejection at the DB layer.
+
 ## Useful commands
 
 ```bash

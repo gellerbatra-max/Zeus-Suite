@@ -116,6 +116,27 @@ toggle (below) the same way as a `cutter_stripe_needed` key — neither needed a
   this app's single manual/Engine-B-stub canvas doesn't produce. Piece-level area/perimeter for
   one selected piece needs no endpoint at all — the frontend already has that piece's width/height
   locally.
+- `app/api/marker_transform.py` — §1.9 Marker transformations, scoped to the three capabilities
+  confirmed with the user. Whole-marker **Flip X/Y/XY has no endpoint here at all** — it's
+  computed entirely client-side (see [`marker-making-app`](../marker-making-app)'s README) and
+  persisted through the ordinary `PUT /markers/{id}/workspace` save path, exactly like
+  single-piece rotate/flip already work. **Shrink and Stretch** *is* server-backed: the plan
+  frames it as an order-level setting read at cut-time, so `shrink_x_pct`/`shrink_y_pct` live on
+  `dmp.orders` (platform migration `0011`) via `PATCH .../transform/shrink-stretch` (reaches
+  through the marker to its linked order, 400 if there isn't one). Since no real cut-time pipeline
+  exists yet (§1.10 is blocked on a `cutter_parameter_table`), `POST .../transform/
+  apply-shrink-stretch` is a stand-in that scales the *current* placements right now — anchored at
+  their own combined bounding-box top-left corner (not the canvas origin), so the layout doesn't
+  drift if pieces don't start at `(0,0)`. **Simplification, flagged explicitly**: nothing clears
+  the stored percentages after applying, so clicking Apply twice in a row double-shrinks — a real
+  cut-time reader would apply the setting exactly once, at generation time, never mutating stored
+  placements at all. **Change Width of Marker** just `PATCH`es the already-existing
+  `markers.fabric_width` column through the normal proxy path — **"auto-rearranges pieces" is
+  explicitly NOT implemented**, since there's no real nesting algorithm to call (Engine B is still
+  Milestone 6's sleep-and-echo stub); pieces stay exactly where they were and may now overflow or
+  leave slack, which the operator has to notice and fix by hand. `app/api/workspace.py`'s
+  `WorkspaceOut` now also carries `fabric_width`, so the frontend can size its canvas from the
+  marker's real value instead of a hardcoded constant.
 
 ## Local setup
 
@@ -139,6 +160,12 @@ Engine A layrule replay (§1.2/§1.5), a real placement-producing solver, bundle
 (§1.3 — the platform's `bundles` API already exists but has no UI here), and the rest of §1.1's
 manual-nesting toolset beyond place/move/rotate/flip/unplace (butt, align, marry, bump lines,
 measure, etc.).
+
+Within marker transformations (§1.9) specifically: Marker/Split, Marker/Attach (join up to 99
+markers into one), Merge, Fix Marker Length/auto-continue, per-piece pre-placement shrink/scale
+(distinct from the marker-wide Shrink and Stretch built here), post-hoc `zoom` scaling, Reference
+Marker, and Associate (live link back to a Pattern Design source file — there's no Pattern Design
+app yet to link to).
 
 Within fuse-blocking (§1.6) specifically: manual-trace (polygon) block shape — only rectangles,
 per the platform's `shape` CHECK; Create Fusing Marker and Cut Net Parts, both blocked on a

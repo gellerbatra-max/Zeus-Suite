@@ -38,6 +38,7 @@ export interface WorkspaceOut {
   workflow_status: string
   order_id: string | null
   style_id: string | null
+  fabric_width: number | null
   matching_method: string | null
   matching_rule_table_id: string | null
   available_pieces: WorkspacePiece[]
@@ -198,4 +199,16 @@ export interface RequiredLengthOut {
 
 export interface MaterialWeightOut {
   weight: number
+}
+
+// -- Marker transformations (Sec 1.9, new) --------------------------------------------------------
+
+export interface TransformSettingsOut {
+  fabric_width: number | null
+  shrink_x_pct: number | null
+  shrink_y_pct: number | null
+}
+
+export interface ChangeWidthOut {
+  fabric_width: number
 }

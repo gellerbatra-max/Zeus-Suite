@@ -7,7 +7,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
-from app.api import block_buffer, matching, material, nesting_jobs, workspace
+from app.api import (
+    block_buffer,
+    marker_transform,
+    matching,
+    material,
+    nesting_jobs,
+    workspace,
+)
 from app.platform_client import PlatformError
 
 app = FastAPI(title="marker-making-service", version="0.1.0")
@@ -46,3 +53,4 @@ app.include_router(nesting_jobs.router)
 app.include_router(matching.router)
 app.include_router(block_buffer.router)
 app.include_router(material.router)
+app.include_router(marker_transform.router)

@@ -149,6 +149,8 @@ def order_out(session: Session, order: Order) -> schemas.OrderOut:
         total_quantity=order.total_quantity,
         target_length=order.target_length,
         target_utilization_pct=order.target_utilization_pct,
+        shrink_x_pct=order.shrink_x_pct,
+        shrink_y_pct=order.shrink_y_pct,
         workflow_status=workflow_status_out(session, order.workflow_status_id),
         version=order.version,
         created_at=order.created_at,
