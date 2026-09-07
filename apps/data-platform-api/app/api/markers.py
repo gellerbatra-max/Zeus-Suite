@@ -18,6 +18,7 @@ from app.deps import (
 from app.errors import bad_request, conflict, not_found
 from app.models import (
     Bundle,
+    LayruleSearchTable,
     Marker,
     MarkerPiece,
     MarkerVersion,
@@ -144,11 +145,21 @@ def patch_marker(
         if table is None or table.deleted_at is not None or table.organization_id != actor.organization_id:
             raise bad_request("matching_rule_table_id does not reference a valid matching rule table.")
 
+    if body.layrule_search_table_id is not None:
+        search_table = db.get(LayruleSearchTable, body.layrule_search_table_id)
+        if (
+            search_table is None
+            or search_table.deleted_at is not None
+            or search_table.organization_id != actor.organization_id
+        ):
+            raise bad_request("layrule_search_table_id does not reference a valid layrule search table.")
+
     before = {"marker_name": marker.marker_name, "fabric_width": float(marker.fabric_width) if marker.fabric_width else None}
     for field in (
         "marker_name", "fabric_width", "matching_method", "matching_rule_table_id",
         "marker_length", "ply_count", "utilization_pct", "fabric_weight_per_unit_area",
         "splice_min_length", "splice_max_length", "splice_margin", "splice_separation",
+        "force_layrule_name", "layrule_search_table_id",
     ):
         value = getattr(body, field)
         if value is not None:

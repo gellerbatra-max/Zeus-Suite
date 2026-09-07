@@ -10,6 +10,8 @@ from app.models import (
     BlockBufferRuleTable,
     Bundle,
     Folder,
+    Layrule,
+    LayruleSearchTable,
     Marker,
     MatchingRuleTable,
     Order,
@@ -325,6 +327,56 @@ def test_splice_mark_end_x_not_after_start_x_rejected(db_session):
         created_by=user.id, updated_by=user.id,
     )
     session.add(bad_mark)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()
+
+
+def test_layrule_search_table_duplicate_name_in_same_org_rejected(db_session):
+    session = db_session
+    unique = uuid.uuid4().hex[:8]
+    org, user, _folder = _seed_org_user_folder(session, unique)
+
+    first = LayruleSearchTable(
+        organization_id=org.id, name=f"DUP-{unique}", created_by=user.id, updated_by=user.id,
+    )
+    session.add(first)
+    session.flush()
+
+    duplicate = LayruleSearchTable(
+        organization_id=org.id, name=f"DUP-{unique}", created_by=user.id, updated_by=user.id,
+    )
+    session.add(duplicate)
+    with pytest.raises(IntegrityError):
+        session.flush()
+    session.rollback()
+
+
+def test_layrule_duplicate_name_in_same_org_rejected(db_session):
+    session = db_session
+    unique = uuid.uuid4().hex[:8]
+    org, user, folder = _seed_org_user_folder(session, unique)
+
+    marker = Marker(
+        organization_id=org.id, folder_id=folder.id, marker_code=f"MRK-{unique}", marker_name="Layrule Marker",
+        workflow_status_id=session.query(WorkflowStatus).filter_by(entity_type="marker", code="unmade").one().id,
+        created_by=user.id, updated_by=user.id,
+    )
+    session.add(marker)
+    session.flush()
+
+    first = Layrule(
+        organization_id=org.id, name=f"DUP-{unique}", source_marker_id=marker.id,
+        created_by=user.id, updated_by=user.id,
+    )
+    session.add(first)
+    session.flush()
+
+    duplicate = Layrule(
+        organization_id=org.id, name=f"DUP-{unique}", source_marker_id=marker.id,
+        created_by=user.id, updated_by=user.id,
+    )
+    session.add(duplicate)
     with pytest.raises(IntegrityError):
         session.flush()
     session.rollback()

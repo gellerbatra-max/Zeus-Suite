@@ -33,6 +33,8 @@ class Marker(Base):
     splice_max_length = Column(Numeric(8, 3))
     splice_margin = Column(Numeric(8, 3))
     splice_separation = Column(Numeric(8, 3))
+    force_layrule_name = Column(Text)
+    layrule_search_table_id = Column(UUID(as_uuid=True), ForeignKey("dmp.layrule_search_tables.id"), nullable=True)
     matching_method = Column(Text)
     matching_rule_table_id = Column(UUID(as_uuid=True), ForeignKey("dmp.matching_rule_tables.id"), nullable=True)
     current_version_id = Column(UUID(as_uuid=True), ForeignKey("dmp.marker_versions.id"), nullable=True)

@@ -214,6 +214,37 @@ export interface ChangeWidthOut {
   fabric_width: number
 }
 
+// -- Layrules (Sec 1.5, new) -----------------------------------------------------------------
+
+export interface LayruleSearchTableOut {
+  id: string
+  name: string
+  area_compare: boolean
+  area_deviation_pct: number
+  copy_dynamics: boolean
+  allow_overrides: boolean
+  include_marker_name: boolean
+  include_marker_description: boolean
+  comment: string | null
+  version: number
+}
+
+export interface LayruleOut {
+  id: string
+  name: string
+  source_marker_id: string
+  piece_count: number
+  comment: string | null
+  version: number
+}
+
+export interface ApplyLayruleResult {
+  applied_piece_ids: string[]
+  unmatched_piece_ids: string[]
+  area_deviation_pct: number | null
+  warning: string | null
+}
+
 // -- Splice marks / fabric-roll handling (Sec 1.8, new) -------------------------------------------
 
 export interface SpliceMarkOut {

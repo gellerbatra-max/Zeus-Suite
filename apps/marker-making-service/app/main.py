@@ -9,6 +9,7 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api import (
     block_buffer,
+    layrules,
     marker_transform,
     matching,
     material,
@@ -56,3 +57,4 @@ app.include_router(block_buffer.router)
 app.include_router(material.router)
 app.include_router(marker_transform.router)
 app.include_router(splice.router)
+app.include_router(layrules.router)

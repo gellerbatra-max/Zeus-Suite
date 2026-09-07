@@ -162,6 +162,29 @@ toggle (below) the same way as a `cutter_stripe_needed` key — neither needed a
   `tests/test_splice.py` covers settings round-trip, manual CRUD, the auto-placement math against
   hand-calculated boundaries, the edge-separation skip, and that regenerating twice doesn't
   duplicate marks or disturb a manual one.
+- `app/api/layrules.py` — §1.5 Layrules automation. Layrule Search Parameter Table CRUD is a thin
+  proxy (mirrors `block_buffer.py`'s rule-table pattern). The real work is **capture** and
+  **apply**, since this service is the one that interprets `placement_data` everywhere else:
+  `POST .../layrules/capture` snapshots a marker's *current* placements (`GET /markers/{id}/pieces`,
+  stored as-is) into a new named layrule — this *is* "Auto-Store Layrule" [GMM] made concrete, since
+  there's no background hook system anywhere in this app to fire it automatically on every save; the
+  frontend triggers it as an explicit action instead (it can, and does, call it right after a normal
+  Save to approximate "automatic"). `POST .../layrules/apply` cross-references the layrule's piece
+  ids against the *target* marker's available style pieces (reusing `workspace.py`'s
+  `_assemble_workspace` rather than duplicating it) and applies only the intersection, reporting the
+  rest as `unmatched_piece_ids` — the concrete expression of "best suited to repeat orders with the
+  same models/sizes... same-or-fewer piece count." When the target marker has a
+  `layrule_search_table_id` linked, its criteria get real teeth: `area_compare`/`area_deviation_pct`
+  compares the layrule's captured total piece area against the target marker's own available-piece
+  area and rejects (409) an apply past the threshold — the concrete form of "changing these settings
+  can invalidate previously saved layrules"; `allow_overrides=false` refuses to apply onto a marker
+  that already has placements, protecting manual work from being silently clobbered. **Known gap**:
+  applying a layrule bulk-replaces placements via the platform's raw `PUT /markers/{id}/pieces`
+  directly, not through `workspace.py`'s `save_workspace` — so it doesn't walk the workflow-status
+  transition graph the way a normal Save does; the marker's status only catches up on the next
+  explicit Save. `tests/test_layrules.py` covers search-table CRUD, settings round-trip,
+  capture-then-apply onto a matching marker (full placement round-trip verified exactly), the
+  unmatched-piece report, the area-deviation rejection, and the allow-overrides rejection.
 
 ## Local setup
 
@@ -181,9 +204,10 @@ pytest                              # run tests (spawns a real data-platform-api
 
 ## Deferred (flagged, not built here)
 
-Engine A layrule replay (§1.2/§1.5), a real placement-producing solver, and the rest of §1.1's
-manual-nesting toolset beyond place/move/rotate/flip/unplace (butt, align, marry, bump lines,
-measure, etc.).
+Engine A's *automatic* layrule replay (§1.2 — this app's capture/apply mechanism is a manually-
+triggered stand-in, not a nesting algorithm that searches for and replays a matching layrule on
+its own), a real placement-producing solver, and the rest of §1.1's manual-nesting toolset beyond
+place/move/rotate/flip/unplace (butt, align, marry, bump lines, measure, etc.).
 
 Within marker transformations (§1.9) specifically: Marker/Split, Marker/Attach (join up to 99
 markers into one), Merge, Fix Marker Length/auto-continue, per-piece pre-placement shrink/scale
@@ -205,6 +229,14 @@ data); the "start covered by the new roll, end by the original roll" physical se
 implementation treats a mark as one symmetric zone, not two distinct roll-attribution edges); and
 automatically re-running Splice/Automatic after every piece add/move/remove (it's an explicit
 button here, not a live recompute).
+
+Within layrules automation (§1.5) specifically: the org-wide naming-strategy and Auto-Store
+settings (see [`data-platform-api`](../data-platform-api)'s README for why); `copy_dynamics`
+(one of the search table's Yes/No criteria) is stored but not interpreted -- it has no concrete
+runtime meaning in this implementation, unlike `area_compare`/`allow_overrides`; automatically
+*finding* which layrule matches a marker (an operator picks one explicitly from a list here,
+there's no search/scoring step); and workflow-status advancement on apply (see the "Known gap"
+above -- Save afterward to bring the status current).
 
 Within fuse-blocking (§1.6) specifically: manual-trace (polygon) block shape — only rectangles,
 per the platform's `shape` CHECK; Create Fusing Marker and Cut Net Parts, both blocked on a

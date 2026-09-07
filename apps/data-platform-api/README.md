@@ -207,6 +207,24 @@ own) — fixed in the same pass across every entity router, not scoped to search
   mark CRUD, the settings fields, `source`-filtered delete-all, and permission enforcement;
   `tests/test_constraints.py` covers the `source` CHECK and the `end_x > start_x` CHECK.
 
+- `alembic/versions/0013_add_layrules.py` + `app/api/layrules.py` — Marker Making §1.5 (layrules
+  automation): `dmp.layrule_search_tables` (the "Layrule Search Parameter Table" — reusable named
+  Yes/No criteria: `area_compare`, `area_deviation_pct`, `copy_dynamics`, `allow_overrides`,
+  `include_marker_name`, `include_marker_description`, same audited/versioned/soft-deleted shape
+  as `matching_rule_tables`/`block_buffer_rule_tables`) and `dmp.layrules` — a captured *snapshot*
+  of one marker's placements (`placements_json`, the exact shape `GET /markers/{id}/pieces`
+  already returns, opaque to this platform like everywhere else) that's reusable on a *different*
+  marker with compatible pieces. `markers.force_layrule_name`/`layrule_search_table_id` are the
+  plan's two mutually-exclusive naming strategies (name-match vs. search-criteria), both just
+  marker-level fields here rather than gated by a company-wide setting — the org-wide naming-
+  strategy/Auto-Store toggle from the plan's "Configured once" framing is deferred, since there's
+  no organizations settings API anywhere in this platform yet to hang it on, and neither naming
+  mode needs it to function (see [`marker-making-service`](../marker-making-service)'s README for
+  where the real capture/apply logic and the search-criteria checks actually live).
+  `tests/test_layrules.py` covers both tables' CRUD, the marker fields (including cross-org
+  rejection for `layrule_search_table_id`), and permission enforcement; `tests/test_constraints.py`
+  covers the `(organization_id, name)` UNIQUE constraint on both new tables.
+
 ## Useful commands
 
 ```bash

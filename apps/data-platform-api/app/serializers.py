@@ -11,6 +11,8 @@ from app.models import (
     Bundle,
     Folder,
     FuseBlock,
+    Layrule,
+    LayruleSearchTable,
     Marker,
     MatchingRuleTable,
     Order,
@@ -80,6 +82,8 @@ def marker_out(session: Session, marker: Marker) -> schemas.MarkerOut:
         splice_max_length=marker.splice_max_length,
         splice_margin=marker.splice_margin,
         splice_separation=marker.splice_separation,
+        force_layrule_name=marker.force_layrule_name,
+        layrule_search_table_id=marker.layrule_search_table_id,
         matching_method=marker.matching_method,
         matching_rule_table_id=marker.matching_rule_table_id,
         current_version_id=marker.current_version_id,
@@ -151,6 +155,37 @@ def splice_mark_out(row: SpliceMark) -> schemas.SpliceMarkOut:
         end_x=row.end_x,
         source=row.source,
         roll_id=row.roll_id,
+        version=row.version,
+        created_at=row.created_at,
+        created_by=row.created_by,
+    )
+
+
+def layrule_search_table_out(row: LayruleSearchTable) -> schemas.LayruleSearchTableOut:
+    return schemas.LayruleSearchTableOut(
+        id=row.id,
+        name=row.name,
+        area_compare=row.area_compare,
+        area_deviation_pct=row.area_deviation_pct,
+        copy_dynamics=row.copy_dynamics,
+        allow_overrides=row.allow_overrides,
+        include_marker_name=row.include_marker_name,
+        include_marker_description=row.include_marker_description,
+        comment=row.comment,
+        version=row.version,
+        created_at=row.created_at,
+        created_by=row.created_by,
+    )
+
+
+def layrule_out(row: Layrule) -> schemas.LayruleOut:
+    return schemas.LayruleOut(
+        id=row.id,
+        name=row.name,
+        source_marker_id=row.source_marker_id,
+        placements_json=row.placements_json,
+        piece_count=row.piece_count,
+        comment=row.comment,
         version=row.version,
         created_at=row.created_at,
         created_by=row.created_by,

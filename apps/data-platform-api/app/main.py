@@ -16,6 +16,7 @@ from app.api import (
     block_buffer,
     folders,
     jobs,
+    layrules,
     markers,
     matching,
     meta,
@@ -78,6 +79,7 @@ app.include_router(markers.router)
 app.include_router(matching.router)
 app.include_router(block_buffer.router)
 app.include_router(splice.router)
+app.include_router(layrules.router)
 app.include_router(orders.router)
 app.include_router(workflow.router)
 app.include_router(audit_log.router)

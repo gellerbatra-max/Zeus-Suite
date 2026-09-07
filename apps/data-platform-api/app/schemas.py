@@ -194,6 +194,8 @@ class MarkerPatch(BaseModel):
     splice_max_length: float | None = None
     splice_margin: float | None = None
     splice_separation: float | None = None
+    force_layrule_name: str | None = None
+    layrule_search_table_id: uuid.UUID | None = None
 
 
 class MarkerOut(BaseModel):
@@ -211,6 +213,8 @@ class MarkerOut(BaseModel):
     splice_max_length: float | None
     splice_margin: float | None
     splice_separation: float | None
+    force_layrule_name: str | None
+    layrule_search_table_id: uuid.UUID | None
     matching_method: str | None
     matching_rule_table_id: uuid.UUID | None
     current_version_id: uuid.UUID | None
@@ -402,6 +406,70 @@ class SpliceMarkOut(BaseModel):
     end_x: float
     source: str
     roll_id: str | None
+    version: int
+    created_at: datetime
+    created_by: uuid.UUID
+
+
+# -- Layrules (Marker Making Sec 1.5) ------------------------------------------------------------
+
+
+class LayruleSearchTableCreate(BaseModel):
+    name: str
+    area_compare: bool = True
+    area_deviation_pct: float = 5.0
+    copy_dynamics: bool = True
+    allow_overrides: bool = True
+    include_marker_name: bool = True
+    include_marker_description: bool = False
+    comment: str | None = None
+
+
+class LayruleSearchTablePatch(BaseModel):
+    name: str | None = None
+    area_compare: bool | None = None
+    area_deviation_pct: float | None = None
+    copy_dynamics: bool | None = None
+    allow_overrides: bool | None = None
+    include_marker_name: bool | None = None
+    include_marker_description: bool | None = None
+    comment: str | None = None
+
+
+class LayruleSearchTableOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    area_compare: bool
+    area_deviation_pct: float
+    copy_dynamics: bool
+    allow_overrides: bool
+    include_marker_name: bool
+    include_marker_description: bool
+    comment: str | None
+    version: int
+    created_at: datetime
+    created_by: uuid.UUID
+
+
+class LayruleCreate(BaseModel):
+    name: str
+    source_marker_id: uuid.UUID
+    placements_json: list[dict[str, Any]]
+    comment: str | None = None
+
+
+class LayrulePatch(BaseModel):
+    name: str | None = None
+    comment: str | None = None
+
+
+class LayruleOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    source_marker_id: uuid.UUID
+    placements_json: list[dict[str, Any]]
+    piece_count: int
+    comment: str | None
     version: int
     created_at: datetime
     created_by: uuid.UUID

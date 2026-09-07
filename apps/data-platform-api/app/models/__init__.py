@@ -22,6 +22,7 @@ from app.models.identity import (
     UserRole,
 )
 from app.models.jobs import Job, JobEvent, JobType
+from app.models.layrules import Layrule, LayruleSearchTable
 from app.models.markers import Marker, MarkerPiece, MarkerVersion
 from app.models.matching import MatchingRuleTable
 from app.models.orders import Order, OrderLine
@@ -40,6 +41,8 @@ __all__ = [
     "Job",
     "JobEvent",
     "JobType",
+    "Layrule",
+    "LayruleSearchTable",
     "Marker",
     "MarkerPiece",
     "MarkerVersion",

@@ -137,6 +137,17 @@ service's README for the full architecture).
   shaded amber band spanning the full fabric-width axis at `[start_x, end_x]` — dashed border for
   `source: 'auto'`, solid for `'manual'`, so which marks survive a regenerate is visually obvious
   without opening the panel — labeled with its `roll_id` (or just its source, if none was given).
+- **Layrule panel** (`LayrulePanel.tsx`, §1.5) — Layrule Search Parameter Table management (name,
+  area-deviation threshold, allow-overrides toggle), this marker's own layrule settings (force
+  layrule name / linked search table, saved independently of the main Save button), "Capture this
+  marker's layout as a layrule" (a one-click stand-in for "Auto-Store Layrule" — there's no
+  background hook to fire it on every save automatically), and "Apply a layrule to this marker"
+  (picks from every layrule in the org, calls the service's real matching logic, and shows
+  `Applied N, unmatched M[, area deviation X%][, warning]` inline). Applying a layrule can place
+  pieces that had no local placement at all — a plain marker-length calc's "map over existing
+  placements" pattern (used by Shrink and Stretch's Apply) would silently drop them, so this uses
+  its own workspace-rebuild path that reconstructs the full placement list from what the server
+  actually returns.
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -311,3 +322,23 @@ Auto Splices" again and confirmed the mark count stayed at exactly 3 (no duplica
 manual mark's `id` unchanged — verified directly via `GET /markers/{id}/splice-marks` (the auto
 marks got fresh ids, confirming they were deleted and recreated rather than left stale). Clicked
 "Delete All" and confirmed the list and the platform API both went empty.
+
+**Layrules**: seeded two markers on the same style/order (so both share the same available
+pieces) — placed two pieces on the source marker at the same coordinates as the fuse-blocking
+check above (`x=10,y=20,w=50,h=40` and `x=80,y=5,w=30,h=60`), captured them as "MyLayrule," and
+confirmed via `GET /layrules` (direct platform call) that the captured `placements_json` matched
+those coordinates exactly. Opened the second (empty) marker, selected "MyLayrule" under "Apply a
+layrule to this marker," clicked Apply, and got `Applied 2, unmatched 0, area deviation 80.17%`
+inline (no search table was linked, so the deviation was informational only, not gating) —
+confirmed via `GET /markers/{id}/pieces` (direct platform call) that the target marker's
+placements now matched the captured layout exactly. **Found and fixed a real bug during this
+check**: the canvas didn't render the newly-applied pieces without a manual reload, because the
+apply handler reused Shrink and Stretch's "map over existing placements" refresh function — which
+does nothing when there were no existing placements to map over. Fixed by giving Apply its own
+workspace-rebuild handler (reconstructs the full placement list from the server response, the same
+way opening a marker does) and re-verified live: cleared the target marker's placements via the
+API, reloaded, applied the layrule again through the UI, and confirmed via the Konva scene graph
+that both pieces appeared at the correct positions immediately, with no reload needed. Clicked the
+main "Save" button afterward and confirmed the marker's status badge advanced from "unmade" to
+"made" — the documented catch-up for the "applying doesn't walk the workflow-status graph itself"
+gap.

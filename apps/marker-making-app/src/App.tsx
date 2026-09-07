@@ -12,6 +12,7 @@ import { TransformPanel } from './components/TransformPanel'
 import { BundlePanel } from './components/BundlePanel'
 import type { BundleGroupBox } from './components/MarkerCanvas'
 import { SplicePanel } from './components/SplicePanel'
+import { LayrulePanel } from './components/LayrulePanel'
 import { api, ApiError } from './api/client'
 import type {
   BlockBufferRuleTableOut, FuseBlockOut, MatchGuidanceOut, SpliceMarkOut, WeaveLine, WorkspaceOut,
@@ -307,6 +308,19 @@ export default function App() {
     setPlacements((prev) => prev.map((p) => toCanvasPlacement(ws, p.pieceId) ?? p))
   }
 
+  // Applying a layrule (Sec 1.5) can place pieces that had no prior local placement at all (the
+  // whole point of reusing a captured layout on a marker that starts empty) -- unlike shrink/
+  // stretch above, this must rebuild the full placements list from the returned workspace rather
+  // than only mapping over what was already there, or newly-applied pieces would be silently
+  // dropped.
+  const applyLayruleWorkspace = (ws: WorkspaceOut) => {
+    setWorkspace(ws)
+    setPlacements(
+      ws.placements.map((p) => toCanvasPlacement(ws, p.piece_id)).filter((p): p is CanvasPlacement => p !== null),
+    )
+    setSelectedPieceId(null)
+  }
+
   const save = async () => {
     if (!workspace) return
     setSaving(true)
@@ -496,6 +510,8 @@ export default function App() {
           />
 
           <SplicePanel markerId={workspace.marker_id} onSpliceMarksChanged={setSpliceMarks} />
+
+          <LayrulePanel markerId={workspace.marker_id} onApplied={applyLayruleWorkspace} />
 
           <NestingJobPanel markerId={workspace.marker_id} orderId={workspace.order_id} />
         </div>

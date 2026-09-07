@@ -79,7 +79,7 @@ input {
 .app__main {
   flex: 1;
   display: grid;
-  grid-template-columns: 220px 1fr 300px 280px 240px 240px 280px 260px 260px;
+  grid-template-columns: 220px 1fr 300px 280px 240px 240px 280px 260px 280px 260px;
   gap: 20px;
   padding: 20px;
   align-items: start;
@@ -735,4 +735,85 @@ input {
   align-items: center;
   gap: 8px;
   padding: 4px 0;
+}
+
+/* Layrule panel (Sec 1.5) */
+
+.layrule-panel {
+  border-left: 1px solid var(--border);
+  padding-left: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.layrule-panel h3 {
+  margin-top: 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.layrule-panel__section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+
+.layrule-panel__section:last-child {
+  border-bottom: none;
+}
+
+.layrule-panel__section label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.layrule-panel__inline-form {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.layrule-panel__inline-form input {
+  flex: 1;
+  min-width: 70px;
+}
+
+.layrule-panel__checkbox {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  text-transform: none;
+}
+
+.layrule-panel__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.8rem;
+}
+
+.layrule-panel__list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 0;
+}
+
+.layrule-panel__result {
+  font-size: 0.8rem;
+  color: var(--accent);
+  margin: 0;
 }

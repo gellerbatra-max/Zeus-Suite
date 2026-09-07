@@ -418,3 +418,76 @@ class SpliceSettingsPatchRequest(BaseModel):
 
 class AutoSpliceRequest(BaseModel):
     roll_length: float
+
+
+# -- Layrules (Sec 1.5) -----------------------------------------------------------------------
+
+
+class LayruleSearchTableCreateRequest(BaseModel):
+    name: str
+    area_compare: bool = True
+    area_deviation_pct: float = 5.0
+    copy_dynamics: bool = True
+    allow_overrides: bool = True
+    include_marker_name: bool = True
+    include_marker_description: bool = False
+    comment: str | None = None
+
+
+class LayruleSearchTablePatchRequest(BaseModel):
+    name: str | None = None
+    area_compare: bool | None = None
+    area_deviation_pct: float | None = None
+    copy_dynamics: bool | None = None
+    allow_overrides: bool | None = None
+    include_marker_name: bool | None = None
+    include_marker_description: bool | None = None
+    comment: str | None = None
+
+
+class LayruleSearchTableOut(BaseModel):
+    id: str
+    name: str
+    area_compare: bool
+    area_deviation_pct: float
+    copy_dynamics: bool
+    allow_overrides: bool
+    include_marker_name: bool
+    include_marker_description: bool
+    comment: str | None
+    version: int
+
+
+class LayruleOut(BaseModel):
+    id: str
+    name: str
+    source_marker_id: str
+    piece_count: int
+    comment: str | None
+    version: int
+
+
+class LayrulePatchRequest(BaseModel):
+    name: str | None = None
+    comment: str | None = None
+
+
+class CaptureLayruleRequest(BaseModel):
+    name: str
+    comment: str | None = None
+
+
+class ApplyLayruleRequest(BaseModel):
+    layrule_id: str
+
+
+class ApplyLayruleResult(BaseModel):
+    applied_piece_ids: list[str]
+    unmatched_piece_ids: list[str]
+    area_deviation_pct: float | None
+    warning: str | None
+
+
+class LayruleSettingsPatchRequest(BaseModel):
+    force_layrule_name: str | None = None
+    layrule_search_table_id: str | None = None
