@@ -40,6 +40,7 @@ export interface CanvasPlacement {
   stripeMarkId: string | null
   cutterStripeNeeded: boolean
   weaveLineOverride: { angleDeg: number; offset: number } | null
+  stripeIndependentInSet: boolean
 }
 
 interface Props {
@@ -145,6 +146,12 @@ export function MarkerCanvas({
                   stroke="#ffffff"
                   strokeWidth={1}
                 />
+              )}
+              {p.stripeIndependentInSet && (
+                // Stripe-only-in-a-set (Sec 1.4): marks a piece that manages its own stripe mark
+                // independently of other pieces sharing its garment size, instead of the default
+                // where assigning a mark to one syncs it across the whole size group.
+                <Text text="S" x={12} y={0} fontSize={9} fontStyle="bold" fill="#8a2be2" />
               )}
             </Group>
           ))}

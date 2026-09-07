@@ -55,7 +55,14 @@ service's README for the full architecture).
   background behind everything else, loaded through a small custom `useHtmlImage` hook in
   `MarkerCanvas.tsx` (this project has no `use-image`-style dependency). **Deferred**: "Show
   Piece's Pattern" (clipping the image to an individual piece's own silhouette) — there's no real
-  piece geometry to clip against yet (only the synthetic placeholder rectangles).
+  piece geometry to clip against yet (only the synthetic placeholder rectangles). **Stripe-only-
+  in-a-set** (§1.4) — since this canvas only ever places one instance per piece (no way to
+  represent literal multiple physical "sets" of one garment size), this is built as: assigning a
+  stripe mark to a piece syncs the same mark across every other placed piece sharing its garment
+  size by default (`App.tsx`'s `handleAssignMark`), and a "Stripe Set: Linked/Independent" button
+  in the piece toolbar opts a piece out of that sync — it neither pushes its own assignment onto
+  its size group nor gets overwritten when another piece in that group is reassigned. A small
+  purple "S" badge renders next to an independent piece's stripe-mark tick on the canvas.
 - **Auto-Nest panel** (`NestingJobPanel.tsx`) — submits to `marker-making-service`'s
   `POST /nesting-jobs` and polls to completion. Proves Engine B's async plumbing end-to-end; the
   result is still the platform's Milestone-6 stub placeholder, not a real placement-producing
@@ -139,3 +146,10 @@ transparent full-marker background, (b) the thumbnail `<img>` element had `compl
 `naturalWidth/naturalHeight: 1×1` (matching the 1×1 test PNG) after loading from a real Azurite SAS
 URL, and (c) clicking "Hide on Canvas" removed the background immediately, confirming the
 visibility toggle reaches the canvas layer correctly.
+
+**Stripe-only-in-a-set**: seeded two same-size (`M`) pieces on one marker, both defaulting to
+"Stripe Set: Linked". Assigned Mark 1 to piece A and confirmed piece B's stripe-mark tick appeared
+too (the sync). Toggled piece B to "Stripe Set: Independent", added Mark 2, selected piece A, and
+assigned Mark 2 to it. Saved and confirmed via `GET /markers/{id}/pieces` that piece A now carried
+Mark 2's id while piece B still carried Mark 1's — the independent toggle correctly excluded it
+from being overwritten by the sync.

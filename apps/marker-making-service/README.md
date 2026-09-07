@@ -108,8 +108,11 @@ validation — plus the cutter stripe setup toggle, overlapped checking (fronten
 [`marker-making-app`](../marker-making-app)'s README), angled-stripe geometry in the guidance math,
 the *global* weave line (angle/offset/visibility, `PUT .../weave-line`), the *per-piece* weave-
 line override (`placement_data.weave_line_angle_deg`/`weave_line_offset`, riding through the same
-opaque JSONB as `stripe_mark_id`/`cutter_stripe_needed` — no new endpoint), and Define Material/
-Material Pattern (fabric reference image, "Show Marker's Pattern" only) added just after — and
-explicitly deferred the rest: APSM/cutter-code generation, point-vs-line matching's line+label
-alternative (only the point/rule-table style is built), "Show Piece's Pattern" (per-piece image
-clipping — no real piece silhouette exists yet to clip against), and Stripe-only-in-a-set.
+opaque JSONB as `stripe_mark_id`/`cutter_stripe_needed` — no new endpoint), Define Material/
+Material Pattern (fabric reference image, "Show Marker's Pattern" only), and Stripe-only-in-a-set
+(`placement_data.stripe_independent_in_set`, another opaque-JSONB passthrough field with the
+sync/opt-out logic living entirely in `marker-making-app` — this service does no interpretation of
+it) added just after — and explicitly deferred the rest: APSM/cutter-code generation,
+point-vs-line matching's line+label alternative (only the point/rule-table style is built), and
+"Show Piece's Pattern" (per-piece image clipping — no real piece silhouette exists yet to clip
+against).

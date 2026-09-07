@@ -15,6 +15,7 @@ class PlacementData(BaseModel):
     cutter_stripe_needed: bool = True
     weave_line_angle_deg: float | None = None
     weave_line_offset: float | None = None
+    stripe_independent_in_set: bool = False
 
 
 class PlacementIn(BaseModel):

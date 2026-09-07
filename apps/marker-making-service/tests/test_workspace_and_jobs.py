@@ -68,6 +68,7 @@ def test_workspace_load_save_and_status_transition():
                 "placement_data": {
                     "x": 100, "y": 10, "rotation_deg": 90, "flip_x": True, "width": 60, "height": 90,
                     "cutter_stripe_needed": False, "weave_line_angle_deg": 15.0, "weave_line_offset": 42.5,
+                    "stripe_independent_in_set": True,
                 },
             },
         ]
@@ -94,6 +95,10 @@ def test_workspace_load_save_and_status_transition():
     assert placement_by_piece[piece_a["id"]]["placement_data"].get("weave_line_angle_deg") is None
     assert placement_by_piece[piece_b["id"]]["placement_data"]["weave_line_angle_deg"] == 15.0
     assert placement_by_piece[piece_b["id"]]["placement_data"]["weave_line_offset"] == 42.5
+    # Stripe-only-in-a-set (Sec 1.4): defaults to False (linked to its size's stripe mark) when
+    # unspecified, same schema-default pattern as cutter_stripe_needed.
+    assert placement_by_piece[piece_a["id"]]["placement_data"]["stripe_independent_in_set"] is False
+    assert placement_by_piece[piece_b["id"]]["placement_data"]["stripe_independent_in_set"] is True
 
     # Reload independently -- confirms this actually persisted through the real platform API,
     # not just an in-memory echo of the request.

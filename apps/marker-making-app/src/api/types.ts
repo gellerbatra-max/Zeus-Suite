@@ -12,6 +12,7 @@ export interface PlacementData {
   cutter_stripe_needed?: boolean
   weave_line_angle_deg?: number | null
   weave_line_offset?: number | null
+  stripe_independent_in_set?: boolean
 }
 
 export interface WorkspacePiece {

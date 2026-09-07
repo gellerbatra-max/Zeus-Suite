@@ -37,6 +37,7 @@ function toCanvasPlacement(workspace: WorkspaceOut, pieceId: string): CanvasPlac
       data.weave_line_angle_deg != null && data.weave_line_offset != null
         ? { angleDeg: data.weave_line_angle_deg, offset: data.weave_line_offset }
         : null,
+    stripeIndependentInSet: data.stripe_independent_in_set ?? false,
   }
 }
 
@@ -83,6 +84,8 @@ export default function App() {
     : []
 
   const selectedCutterStripeNeeded = placements.find((p) => p.pieceId === selectedPieceId)?.cutterStripeNeeded ?? true
+  const selectedStripeIndependentInSet =
+    placements.find((p) => p.pieceId === selectedPieceId)?.stripeIndependentInSet ?? false
 
   const selectedPieceCenter = (() => {
     const selected = placements.find((p) => p.pieceId === selectedPieceId)
@@ -107,7 +110,7 @@ export default function App() {
       {
         pieceId, pieceCode: piece.piece_code, x, y, rotationDeg: 0, flipX: false, flipY: false,
         width: piece.width, height: piece.height, sizeCode: 'M', quantity: 1, stripeMarkId: null,
-        cutterStripeNeeded: true, weaveLineOverride: null,
+        cutterStripeNeeded: true, weaveLineOverride: null, stripeIndependentInSet: false,
       },
     ])
     setSelectedPieceId(pieceId)
@@ -119,7 +122,23 @@ export default function App() {
   }
 
   const handleAssignMark = (pieceId: string, markId: string | null) => {
-    setPlacements((prev) => prev.map((p) => (p.pieceId === pieceId ? { ...p, stripeMarkId: markId } : p)))
+    setPlacements((prev) => {
+      const target = prev.find((p) => p.pieceId === pieceId)
+      if (!target) return prev
+      // Stripe-only-in-a-set (Sec 1.4): by default, assigning a mark to a piece syncs the same
+      // mark across every other placed piece of the same garment size (a "set" sharing that
+      // size) -- the doc's default before the toggle exists. A piece flagged
+      // stripeIndependentInSet opts out: it neither pushes its own assignment onto its size
+      // group, nor gets overwritten when another piece in that group is assigned.
+      if (target.stripeIndependentInSet) {
+        return prev.map((p) => (p.pieceId === pieceId ? { ...p, stripeMarkId: markId } : p))
+      }
+      return prev.map((p) =>
+        p.pieceId === pieceId || (p.sizeCode === target.sizeCode && !p.stripeIndependentInSet)
+          ? { ...p, stripeMarkId: markId }
+          : p,
+      )
+    })
   }
 
   const handleSetWeaveLineOverride = (pieceId: string, override: { angleDeg: number; offset: number } | null) => {
@@ -167,6 +186,7 @@ export default function App() {
             cutter_stripe_needed: p.cutterStripeNeeded,
             weave_line_angle_deg: p.weaveLineOverride?.angleDeg ?? null,
             weave_line_offset: p.weaveLineOverride?.offset ?? null,
+            stripe_independent_in_set: p.stripeIndependentInSet,
           },
         })),
       })
@@ -255,6 +275,12 @@ export default function App() {
                 onClick={() => updateSelected((p) => ({ ...p, cutterStripeNeeded: !p.cutterStripeNeeded }))}
               >
                 Cutter Stripe: {selectedCutterStripeNeeded ? 'Needed' : 'Not Needed'}
+              </button>
+              <button
+                disabled={!selectedPieceId}
+                onClick={() => updateSelected((p) => ({ ...p, stripeIndependentInSet: !p.stripeIndependentInSet }))}
+              >
+                Stripe Set: {selectedStripeIndependentInSet ? 'Independent' : 'Linked'}
               </button>
             </div>
           </div>
