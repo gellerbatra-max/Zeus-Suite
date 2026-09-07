@@ -22,6 +22,10 @@ from azure.storage.blob import (
 from app.config import settings
 
 EXPORTS_CONTAINER = "format-interchange-exports"
+# Staged import bundles (raw IGES source + converted geometry + warnings) -- a distinct container
+# from exports since an import artifact isn't a piece version either, and isn't downloadable as a
+# plain file the way an export is (the Import Viewer reads it back as structured JSON, not a link).
+IMPORTS_CONTAINER = "format-interchange-imports"
 
 _service_client: BlobServiceClient | None = None
 
@@ -53,15 +57,29 @@ def download_bytes(sas_url: str) -> bytes:
 
 
 def ensure_exports_container() -> None:
-    container = get_blob_service_client().get_container_client(EXPORTS_CONTAINER)
-    if not container.exists():
-        container.create_container()
+    _ensure_container(EXPORTS_CONTAINER)
 
 
 def upload_export(blob_key: str, payload: bytes, content_type: str = "text/plain") -> None:
     ensure_exports_container()
     container = get_blob_service_client().get_container_client(EXPORTS_CONTAINER)
     container.upload_blob(blob_key, payload, overwrite=True, content_settings=ContentSettings(content_type=content_type))
+
+
+def _ensure_container(name: str) -> None:
+    container = get_blob_service_client().get_container_client(name)
+    if not container.exists():
+        container.create_container()
+
+
+def upload_import_bundle(blob_key: str, payload: bytes) -> None:
+    _ensure_container(IMPORTS_CONTAINER)
+    container = get_blob_service_client().get_container_client(IMPORTS_CONTAINER)
+    container.upload_blob(blob_key, payload, overwrite=True, content_settings=ContentSettings(content_type="application/json"))
+
+
+def download_import_bundle(blob_key: str) -> bytes:
+    return get_blob_service_client().get_blob_client(IMPORTS_CONTAINER, blob_key).download_blob().readall()
 
 
 def download_url_for_export(blob_key: str, expiry_minutes: int = 15) -> str:

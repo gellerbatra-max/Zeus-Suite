@@ -63,17 +63,17 @@ class ExportValidationError(Exception):
         super().__init__(message)
 
 
-def validate_for_export(doc: PieceGeometryDocument) -> None:
-    """The export validation gate (Sec 1.1): re-run the same self-intersection and closure checks
-    Pattern Design's own save validation uses, before mapping to IGES entities. "A piece that
-    fails either check is rejected with the offending segment's coordinates rather than silently
-    exporting broken geometry -- Gerber's IGESOUT has no equivalent check.\""""
-    if len(doc.perimeter) < 3:
+def validate_perimeter(points: list[Point]) -> None:
+    """The self-intersection + minimum-point-count check shared by the export validation gate
+    (Sec 1.1) and the import pipeline's post-reconstruction check (Sec 1.2/7 Step 2) -- both
+    directions need the same "reject with the offending coordinate rather than silently
+    producing broken geometry" guarantee Pattern Design's own save validation uses."""
+    if len(points) < 3:
         raise ExportValidationError(
-            "insufficient_points", "Perimeter needs at least 3 points to export a closed outline."
+            "insufficient_points", "Perimeter needs at least 3 points to form a closed outline."
         )
 
-    coords = [(p.x, p.y) for p in doc.perimeter] + [(doc.perimeter[0].x, doc.perimeter[0].y)]
+    coords = [(p.x, p.y) for p in points] + [(points[0].x, points[0].y)]
     ring = LineString(coords)
     if not ring.is_simple:
         # is_simple (LineString self-intersection) has no explain_validity support in Shapely --
@@ -86,3 +86,11 @@ def validate_for_export(doc: PieceGeometryDocument) -> None:
             f"Perimeter outline self-intersects: {validity}",
             {"perimeter": coords},
         )
+
+
+def validate_for_export(doc: PieceGeometryDocument) -> None:
+    """The export validation gate (Sec 1.1): re-run the same self-intersection and closure checks
+    Pattern Design's own save validation uses, before mapping to IGES entities. "A piece that
+    fails either check is rejected with the offending segment's coordinates rather than silently
+    exporting broken geometry -- Gerber's IGESOUT has no equivalent check.\""""
+    validate_perimeter(doc.perimeter)

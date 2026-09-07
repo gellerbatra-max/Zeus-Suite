@@ -1,8 +1,9 @@
 # format-interchange-service
 
-Backend for the Format Interchange & Legacy Migration Utility, Step 1 of Phase 3 (see
+Backend for the Format Interchange & Legacy Migration Utility, Steps 1-2 of Phase 3 (see
 [`docs/planning/04_format_interchange/format_interchange_plan.md`](../../docs/planning/04_format_interchange/format_interchange_plan.md)
-Sec 7): single-piece IGES export -- "the smallest complete slice."
+Sec 7): single-piece IGES export ("the smallest complete slice") and single-piece IGES import
+(the reader, the Sec 1.2 option pipeline, Import Profiles, and a staged-commit Import Viewer).
 
 ## How this differs from every other app built so far
 
@@ -39,8 +40,30 @@ uses against its own backend, just one hop further out.
   `interchange_job.status`, this service's own row, is authoritative instead.
 - `app/blob_io.py` -- downloads geometry bytes from the platform's SAS URL; uploads/serves this
   service's own export artifacts from its own `format-interchange-exports` container (an export
-  isn't a piece version, so it never goes through the platform's `begin_version` dance).
-- `alembic/` -- `format_interchange` schema, `interchange_job` table only (Step 1's needs).
+  isn't a piece version, so it never goes through the platform's `begin_version` dance), and (Step
+  2) staged-import bundles (raw source + converted geometry + warnings) from a second
+  `format-interchange-imports` container.
+- `app/iges_reader.py` -- the symmetrical counterpart to `iges_writer.py`: parses IGES ASCII back
+  into Type 110/116/102 entities, reading the Directory Entry's Entity Label back to recover
+  "OUTLINE"/"INTERNAL"/"GRAIN"/"NOTCH" semantics on round-trip.
+- `app/import_pipeline.py` -- turns a parsed IGES document into this service's geometry mirror,
+  applying Sec 1.2's option table as explicit, individually-warned pipeline stages: outline
+  reconstruction (Composite Curve when present, heuristic endpoint-chaining -- "largest closed
+  loop = outline" -- otherwise), `closure_amount_mm` gap-bridging, `trim_tolerance` collinear-point
+  removal, `paste_internal_to_notch`, `points_to_drill_holes`, and a `unit_override` plausibility
+  heuristic. `infer_grade_points`/`numbering_scheme` (no grading integration exists yet) and
+  `max_arc_points`/`max_spline_points`/`force_sharp_corners` (no arc/spline/curve-smoothing entity
+  exists to act on) are deliberately scoped out -- requesting them produces an
+  `option_not_implemented` warning rather than a silent no-op.
+- `app/api/import_.py` -- `POST /import/iges` (multipart file + JSON options) and
+  `GET/POST .../jobs/{job_id}` (+ `/log`, `/commit`). Conversion is synchronous, same deviation as
+  export's job-queue usage (see its own module docstring). A converted piece commits to the
+  platform in the same request only if `stage_only=false` or `auto_approve=true`; otherwise it's
+  held `staged` (Sec 1.4's Import Viewer gate) pending an explicit `/commit` call.
+- `app/api/import_profiles.py` -- `GET/POST /import-profiles`, `PUT /import-profiles/{id}` (Sec
+  1.3's saved parameter presets, replacing `IGES.INI`).
+- `alembic/` -- `format_interchange` schema: `interchange_job` (Step 1) plus (Step 2)
+  `import_profile` and `interchange_job.target_piece_id`/nullable `piece_id`.
 
 ## Local setup
 
@@ -75,10 +98,15 @@ same rather than assuming port 8000 / the `zeus_suite` database are yours alone.
 
 ## Deferred (flagged, not built here)
 
-Everything past Step 1 of Sec 7's phased plan: IGES **import** (Step 2 -- the reader, Import
-Profiles, the Import Viewer with staged-commit), the Legacy Migration batch pipeline and its full
+Everything past Step 2 of Sec 7's phased plan: the Legacy Migration batch pipeline and its full
 error/warning catalogue (Step 3), the Migration Viewer and triage-and-fix loop (Step 4), and
-load/audit/RBAC hardening (Step 5). Within Step 1 itself: batch export (`POST /export/iges/batch`),
+load/audit/RBAC hardening (Step 5). Within Step 1: batch export (`POST /export/iges/batch`),
 `entity_profile` target-system curve preferences (no curve/spline entity exists yet to have
 preferences about), and a dedicated worker service-account identity for pushing the platform `Job`
-through its real `heartbeat`/`complete` lifecycle (see `app/api/export.py`'s docstring).
+through its real `heartbeat`/`complete` lifecycle (see `app/api/export.py`'s docstring). Within
+Step 2: `infer_grade_points`/`numbering_scheme` grade-point inference (no grading integration
+exists in this service), `max_arc_points`/`max_spline_points`/`force_sharp_corners` (no arc/spline
+entity or curve-smoothing exists to act on -- these produce an `option_not_implemented` warning if
+requested), and the Konva-based visual Import Viewer (this slice's viewer is a structured-JSON
+summary + warnings list in `format-interchange-app`, not a canvas rendering -- that's Step 4's
+Migration Viewer work, reused here per the plan's own note that it's a shared component).
